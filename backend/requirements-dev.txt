@@ -14,7 +14,7 @@ pytest-asyncio==0.26.0
 httpx==0.28.1            # in-process ASGI transport for fastapi.testclient
 
 # --- Lint, format and static types ------------------------------------------
-ruff==0.16.7
+ruff==0.16.8
 mypy==2.3.1
 
 # --- Supply-chain audit ------------------------------------------------------
