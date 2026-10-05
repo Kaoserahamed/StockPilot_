@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import Context, get_current_context
+from app.core.error_tracking import get_error_tracker
 from app.core.logging_config import get_logger
 from app.db.session import get_db
 from app.models.party import Supplier
@@ -14,6 +15,7 @@ from app.services.audit import write_audit
 from app.services.serializers import purchase_to_out, purchases_to_out
 
 logger = get_logger(__name__)
+error_tracker = get_error_tracker()
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
 

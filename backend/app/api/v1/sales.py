@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import Context, get_current_context
+from app.core.error_tracking import get_error_tracker
 from app.core.logging_config import get_logger
 from app.db.session import get_db
 from app.models.party import Customer
@@ -11,6 +12,7 @@ from app.schemas.schemas import CheckoutRequest, SaleCancelRequest, SaleItemOut,
 from app.services.serializers import sale_to_out, sales_to_out
 
 logger = get_logger(__name__)
+error_tracker = get_error_tracker()
 
 router = APIRouter(tags=["sales"])
 pos = APIRouter(prefix="/pos", tags=["pos"])
@@ -84,29 +86,41 @@ def checkout(
         },
     )
 
-    if ctx.role not in ("Owner", "Manager", "Cashier"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-    method = (payload.payment_method or "cash").lower()
-    if method not in ALLOWED_METHODS:
-        raise HTTPException(status_code=422, detail=f"Invalid payment_method {method}")
-    customer = None
-    if payload.customer_id:
-        customer = (
-            db.query(Customer)
-            .filter(Customer.id == payload.customer_id, Customer.business_id == ctx.business_id)
-            .first()
+    try:
+        if ctx.role not in ("Owner", "Manager", "Cashier"):
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        method = (payload.payment_method or "cash").lower()
+        if method not in ALLOWED_METHODS:
+            raise HTTPException(status_code=422, detail=f"Invalid payment_method {method}")
+        customer = None
+        if payload.customer_id:
+            customer = (
+                db.query(Customer)
+                .filter(Customer.id == payload.customer_id, Customer.business_id == ctx.business_id)
+                .first()
+            )
+            if not customer:
+                raise HTTPException(status_code=400, detail="Invalid customer")
+        pids = [i.product_id for i in payload.items]
+        products = {
+            p.id: p
+            for p in db.query(Product)
+            .filter(Product.id.in_(pids), Product.business_id == ctx.business_id)
+            .all()
+        }
+        if len(products) != len(set(pids)):
+            raise HTTPException(status_code=400, detail="Invalid product in cart")
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        # Capture unexpected errors during validation
+        logger.error(
+            "Checkout validation failed",
+            extra={"business_id": ctx.business_id, "error": str(e)},
         )
-        if not customer:
-            raise HTTPException(status_code=400, detail="Invalid customer")
-    pids = [i.product_id for i in payload.items]
-    products = {
-        p.id: p
-        for p in db.query(Product)
-        .filter(Product.id.in_(pids), Product.business_id == ctx.business_id)
-        .all()
-    }
-    if len(products) != len(set(pids)):
-        raise HTTPException(status_code=400, detail="Invalid product in cart")
+        error_tracker.capture(e)
+        raise
     lines = []
     subtotal = 0.0
     for i in payload.items:
