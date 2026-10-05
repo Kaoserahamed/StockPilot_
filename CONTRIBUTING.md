@@ -141,3 +141,82 @@ docs: document the fresh-clone test command
 
 Please include the exact commands you ran, the full error output, and your OS / Python / Node
 versions. Screenshots help for UI issues.
+
+---
+
+## 7. Dependency management
+
+### Backend (Python)
+
+All runtime dependencies in `backend/requirements.txt` are **pinned to exact versions** (`==`)
+to ensure reproducible builds. Development dependencies in `backend/requirements-dev.txt` follow
+the same convention.
+
+**Lockfiles:**
+- `requirements.lock` - Full transitive closure of runtime dependencies with hashes
+- `requirements-dev.lock` - Full transitive closure including dev/test tooling
+- `uv.lock` - Hash-pinned closure managed by `uv` for CI drift detection
+
+**Updating dependencies:**
+```bash
+# Update a specific package
+cd backend
+# Edit requirements.txt to bump the version
+pip install -r requirements.txt -r requirements-dev.txt
+python scripts/generate_lockfile.py
+python scripts/generate_lockfile.py --dev
+uv lock
+
+# Check for outdated packages
+pip list --outdated
+```
+
+### Frontend (npm)
+
+Dependencies in `frontend/package.json` use **caret ranges** (`^x.y.z`) which is the npm
+standard. This allows patch and minor updates while preventing breaking changes.
+
+**Lockfile:**
+- `package-lock.json` - Exact versions and integrity hashes (committed)
+
+**Updating dependencies:**
+```bash
+cd frontend
+npm outdated                    # List packages with updates
+npm update                      # Update within semver ranges
+npm install package@latest      # Update specific package to latest
+npm audit fix                   # Apply security updates
+```
+
+**Major version upgrades** (React 18→19, Next.js 14→15, etc.) require manual testing
+and may involve breaking changes. Review changelogs before upgrading.
+
+### Automated updates
+
+Dependabot is configured in `.github/dependabot.yml` to check for updates weekly and
+open PRs automatically. Security updates are prioritized.
+
+---
+
+## 8. Maintainership & bus factor
+
+**Current status:** This is a **solo-maintained project** by [@Kaoserahamed](https://github.com/Kaoserahamed).
+
+**Response expectations:**
+- Issues and PRs: Response within 1-2 business days (best effort)
+- Security issues: Response within 24 hours, patch within 1 week depending on severity
+- Feature requests: Reviewed on a case-by-case basis, timeline depends on scope
+
+**Bus factor acknowledgment:**
+As a solo-maintained project, continuity depends on the availability of a single developer.
+If you're interested in becoming a co-maintainer, please open an issue to discuss.
+
+**For production users:**
+- Pin specific releases/tags rather than tracking `main`
+- Monitor the repository for activity and consider forking if maintenance stalls
+- Security patches and critical bug fixes are prioritized over new features
+
+**For contributors:**
+- Your PRs may sit longer during periods of low activity - this is expected for solo projects
+- Clear documentation and tests in your PR speed up the review process significantly
+- Opening an issue to discuss the approach before large refactors is recommended
