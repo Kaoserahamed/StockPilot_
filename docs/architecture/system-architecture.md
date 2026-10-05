@@ -120,6 +120,9 @@ TanStack Query caching reads and `useOptimisticUpdate` masking write latency.
 - `core/logging_config`: structured JSON logs via `python-json-logger` in production
   (`JSON_LOGS=true`), human-readable locally; every record carries a
   correlation field (`app`) and standard fields (timestamp, level, name, message).
+- `core/error_tracking`: dependency-free crash reporter with fingerprinting, aggregation,
+  and optional Sentry integration (`SENTRY_DSN`); exposes recent errors via `/health/detailed`.
+  Captures route, request ID, tenant, and actor context for every unhandled exception.
 - `core/middleware`: `RequestContextMiddleware` (id + timing),
   `SecurityHeadersMiddleware` (HSTS/CSP/X-Frame…), `CacheHeadersMiddleware`.
 - `core/exceptions`: uniform `{error: {code, message}}` envelope for every
