@@ -10,6 +10,7 @@ from app.models.product import Product
 from app.models.transactions import Purchase, PurchaseItem
 from app.schemas.schemas import PurchaseCreate, PurchaseItemOut, PurchaseOut, PurchasePayRequest
 from app.services.audit import write_audit
+from app.services.serializers import purchase_to_out, purchases_to_out
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
 
@@ -17,90 +18,6 @@ router = APIRouter(prefix="/purchases", tags=["purchases"])
 def _check_write(ctx: Context):
     if ctx.role not in ("Owner", "Manager"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-
-def _to_out(db: Session, p: Purchase) -> PurchaseOut:
-    items = db.query(PurchaseItem).filter(PurchaseItem.purchase_id == p.id).all()
-    pids = [i.product_id for i in items] or [0]
-    names = {r.id: r.name for r in db.query(Product).filter(Product.id.in_(pids)).all()}
-    sup = db.query(Supplier).filter(Supplier.id == p.supplier_id).first()
-    return PurchaseOut(
-        id=p.id,
-        supplier_id=p.supplier_id,
-        supplier_name=sup.company_name if sup else None,
-        purchase_date=p.purchase_date,
-        subtotal=p.subtotal,
-        discount_amount=p.discount_amount,
-        tax_amount=p.tax_amount,
-        total_amount=p.total_amount,
-        paid_amount=p.paid_amount,
-        payment_status=p.payment_status,
-        status=p.status,
-        note=p.note,
-        items=[
-            PurchaseItemOut(
-                id=i.id,
-                product_id=i.product_id,
-                product_name=names.get(i.product_id),
-                quantity=i.quantity,
-                unit_cost=i.unit_cost,
-                line_total=i.line_total,
-            )
-            for i in items
-        ],
-    )
-
-
-def _many_to_out(db: Session, rows: list[Purchase]) -> list[PurchaseOut]:
-    """Batch converter: fixed ~4 queries regardless of list size."""
-    if not rows:
-        return []
-    pids = [p.id for p in rows] or [0]
-    items = (
-        db.query(PurchaseItem)
-        .filter(PurchaseItem.purchase_id.in_(pids))
-        .order_by(PurchaseItem.purchase_id, PurchaseItem.id)
-        .all()
-    )
-    prod_ids = list({i.product_id for i in items}) or [0]
-    names = {r.id: r.name for r in db.query(Product).filter(Product.id.in_(prod_ids)).all()}
-    sup_ids = [p.supplier_id for p in rows] or [0]
-    sups = {s.id: s for s in db.query(Supplier).filter(Supplier.id.in_(sup_ids)).all()}
-    by_p: dict[int, list[PurchaseItem]] = {}
-    for i in items:
-        by_p.setdefault(i.purchase_id, []).append(i)
-    out = []
-    for p in rows:
-        sup = sups.get(p.supplier_id)
-        pitems = by_p.get(p.id, [])
-        out.append(
-            PurchaseOut(
-                id=p.id,
-                supplier_id=p.supplier_id,
-                supplier_name=sup.company_name if sup else None,
-                purchase_date=p.purchase_date,
-                subtotal=p.subtotal,
-                discount_amount=p.discount_amount,
-                tax_amount=p.tax_amount,
-                total_amount=p.total_amount,
-                paid_amount=p.paid_amount,
-                payment_status=p.payment_status,
-                status=p.status,
-                note=p.note,
-                items=[
-                    PurchaseItemOut(
-                        id=i.id,
-                        product_id=i.product_id,
-                        product_name=names.get(i.product_id),
-                        quantity=i.quantity,
-                        unit_cost=i.unit_cost,
-                        line_total=i.line_total,
-                    )
-                    for i in pitems
-                ],
-            )
-        )
-    return out
 
 
 @router.get("", response_model=list[PurchaseOut])
@@ -114,7 +31,7 @@ def list_all(
     if supplier_id:
         q = q.filter(Purchase.supplier_id == supplier_id)
     rows = q.order_by(Purchase.id.desc()).limit(limit).all()
-    return _many_to_out(db, rows)
+    return purchases_to_out(db, rows)
 
 
 @router.post("/{pid}/pay", response_model=PurchaseOut)
@@ -154,7 +71,7 @@ def pay(
     )
     db.commit()
     db.refresh(p)
-    return _to_out(db, p)
+    return purchase_to_out(db, p)
 
 
 @router.post("/{pid}/cancel", response_model=PurchaseOut)
@@ -169,7 +86,7 @@ def cancel(pid: int, ctx: Context = Depends(get_current_context), db: Session = 
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
     if p.status == "cancelled":
-        return _to_out(db, p)
+        return purchase_to_out(db, p)
     from app.models.inventory import InventoryTransaction
 
     items = db.query(PurchaseItem).filter(PurchaseItem.purchase_id == p.id).all()
@@ -212,7 +129,7 @@ def cancel(pid: int, ctx: Context = Depends(get_current_context), db: Session = 
     )
     db.commit()
     db.refresh(p)
-    return _to_out(db, p)
+    return purchase_to_out(db, p)
 
 
 @router.post("", response_model=PurchaseOut, status_code=201)
@@ -301,7 +218,7 @@ def create(
     )
     db.commit()
     db.refresh(pur)
-    return _to_out(db, pur)
+    return purchase_to_out(db, pur)
 
 
 @router.get("/{pid}", response_model=PurchaseOut)
@@ -313,4 +230,4 @@ def get_one(pid: int, ctx: Context = Depends(get_current_context), db: Session =
     )
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
-    return _to_out(db, p)
+    return purchase_to_out(db, p)

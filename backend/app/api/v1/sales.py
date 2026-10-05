@@ -7,106 +7,11 @@ from app.models.party import Customer
 from app.models.product import Product
 from app.models.sales import Sale, SaleItem
 from app.schemas.schemas import CheckoutRequest, SaleCancelRequest, SaleItemOut, SaleOut
+from app.services.serializers import sale_to_out, sales_to_out
 
 router = APIRouter(tags=["sales"])
 pos = APIRouter(prefix="/pos", tags=["pos"])
 sales = APIRouter(prefix="/sales", tags=["sales"])
-
-
-def _sale_to_out(db: Session, s: Sale) -> SaleOut:
-    # NOTE: items/products/customer fetched lazily per sale (N+1) by design —
-    # list endpoints batch this via _sales_to_out; single-sale endpoints reuse it.
-    items = db.query(SaleItem).filter(SaleItem.sale_id == s.id).all()
-    pids = [i.product_id for i in items] or [0]
-    names = {p.id: p.name for p in db.query(Product).filter(Product.id.in_(pids)).all()}
-    cname = None
-    if s.customer_id:
-        c = db.query(Customer).filter(Customer.id == s.customer_id).first()
-        cname = c.name if c else None
-    return SaleOut(
-        id=s.id,
-        invoice_no=s.invoice_no,
-        customer_id=s.customer_id,
-        customer_name=cname,
-        subtotal=s.subtotal,
-        discount_amount=s.discount_amount,
-        tax_percent=s.tax_percent,
-        tax_amount=s.tax_amount,
-        total_amount=s.total_amount,
-        paid_amount=s.paid_amount,
-        payment_method=s.payment_method,
-        payment_status=s.payment_status,
-        status=s.status,
-        created_at=s.created_at,
-        items=[
-            SaleItemOut(
-                id=i.id,
-                product_id=i.product_id,
-                product_name=names.get(i.product_id),
-                quantity=i.quantity,
-                unit_price=i.unit_price,
-                discount=i.discount,
-                line_total=i.line_total,
-                returned_qty=i.returned_qty,
-            )
-            for i in items
-        ],
-    )
-
-
-def _sales_to_out(db: Session, sales: list[Sale]) -> list[SaleOut]:
-    """Batch converter: fixed ~4 queries no matter how many sales are listed."""
-    sids = [s.id for s in sales]
-    if not sids:
-        return []
-    items = (
-        db.query(SaleItem)
-        .filter(SaleItem.sale_id.in_(sids))
-        .order_by(SaleItem.sale_id, SaleItem.id)
-        .all()
-    )
-    pids = list({i.product_id for i in items}) or [0]
-    names = {p.id: p.name for p in db.query(Product).filter(Product.id.in_(pids)).all()}
-    cids = [s.customer_id for s in sales if s.customer_id] or [0]
-    cnames = {c.id: c.name for c in db.query(Customer).filter(Customer.id.in_(cids)).all()}
-    by_sale: dict[int, list[SaleItem]] = {}
-    for i in items:
-        by_sale.setdefault(i.sale_id, []).append(i)
-    out = []
-    for s in sales:
-        sitems = by_sale.get(s.id, [])
-        out.append(
-            SaleOut(
-                id=s.id,
-                invoice_no=s.invoice_no,
-                customer_id=s.customer_id,
-                customer_name=cnames.get(s.customer_id) if s.customer_id else None,
-                subtotal=s.subtotal,
-                discount_amount=s.discount_amount,
-                tax_percent=s.tax_percent,
-                tax_amount=s.tax_amount,
-                total_amount=s.total_amount,
-                paid_amount=s.paid_amount,
-                payment_method=s.payment_method,
-                payment_status=s.payment_status,
-                status=s.status,
-                created_at=s.created_at,
-                items=[
-                    SaleItemOut(
-                        id=i.id,
-                        product_id=i.product_id,
-                        product_name=names.get(i.product_id),
-                        quantity=i.quantity,
-                        unit_price=i.unit_price,
-                        discount=i.discount,
-                        line_total=i.line_total,
-                        returned_qty=i.returned_qty,
-                    )
-                    for i in sitems
-                ],
-            )
-        )
-    return out
 
 
 @pos.get("/search")
@@ -269,7 +174,7 @@ def checkout(
     )
     db.commit()
     db.refresh(sale)
-    return _sale_to_out(db, sale)
+    return sale_to_out(db, sale)
 
 
 @sales.get("", response_model=list[SaleOut])
@@ -289,7 +194,7 @@ def list_sales(
     if payment_status:
         q = q.filter(Sale.payment_status == payment_status)
     rows = q.order_by(Sale.id.desc()).limit(limit).all()
-    return _sales_to_out(db, rows)
+    return sales_to_out(db, rows)
 
 
 @sales.get("/{sale_id}", response_model=SaleOut)
@@ -299,7 +204,7 @@ def get_sale(
     s = db.query(Sale).filter(Sale.id == sale_id, Sale.business_id == ctx.business_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="Not found")
-    return _sale_to_out(db, s)
+    return sale_to_out(db, s)
 
 
 @sales.post("/{sale_id}/cancel", response_model=SaleOut)
@@ -321,7 +226,7 @@ def cancel_sale(
     if not s:
         raise HTTPException(status_code=404, detail="Not found")
     if s.status == "cancelled":
-        return _sale_to_out(db, s)
+        return sale_to_out(db, s)
     items = db.query(SaleItem).filter(SaleItem.sale_id == s.id).all()
     net_paid = (s.total_amount or 0) - (s.refunded_amount or 0)
     for si in items:
@@ -358,7 +263,7 @@ def cancel_sale(
     )
     db.commit()
     db.refresh(s)
-    return _sale_to_out(db, s)
+    return sale_to_out(db, s)
 
 
 router.include_router(pos)
