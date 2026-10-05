@@ -5,13 +5,9 @@ from app.core.deps import Context, get_current_context
 from app.db.session import get_db
 from app.models.party import Customer, Supplier
 from app.schemas.schemas import CustomerCreate, CustomerOut, SupplierCreate, SupplierOut
+from app.services.authorization import require_write_or_cashier
 
 router = APIRouter(tags=["parties"])
-
-
-def _check_write(ctx: Context):
-    if ctx.role not in ("Owner", "Manager", "Cashier"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
 # ---- Suppliers FR-6 ----
@@ -29,7 +25,7 @@ def create_sup(
     ctx: Context = Depends(get_current_context),
     db: Session = Depends(get_db),
 ):
-    _check_write(ctx)
+    require_write_or_cashier(ctx)
     s = Supplier(business_id=ctx.business_id, **payload.model_dump())
     db.add(s)
     db.commit()
@@ -44,7 +40,7 @@ def update_sup(
     ctx: Context = Depends(get_current_context),
     db: Session = Depends(get_db),
 ):
-    _check_write(ctx)
+    require_write_or_cashier(ctx)
     s = (
         db.query(Supplier)
         .filter(Supplier.id == sid, Supplier.business_id == ctx.business_id)
@@ -61,7 +57,7 @@ def update_sup(
 
 @sup.post("/{sid}/deactivate", response_model=SupplierOut)
 def deact_sup(sid: int, ctx: Context = Depends(get_current_context), db: Session = Depends(get_db)):
-    _check_write(ctx)
+    require_write_or_cashier(ctx)
     s = (
         db.query(Supplier)
         .filter(Supplier.id == sid, Supplier.business_id == ctx.business_id)
@@ -127,7 +123,7 @@ def create_cust(
     ctx: Context = Depends(get_current_context),
     db: Session = Depends(get_db),
 ):
-    _check_write(ctx)
+    require_write_or_cashier(ctx)
     c = Customer(business_id=ctx.business_id, **payload.model_dump())
     db.add(c)
     db.commit()
@@ -142,7 +138,7 @@ def update_cust(
     ctx: Context = Depends(get_current_context),
     db: Session = Depends(get_db),
 ):
-    _check_write(ctx)
+    require_write_or_cashier(ctx)
     c = (
         db.query(Customer)
         .filter(Customer.id == cid, Customer.business_id == ctx.business_id)

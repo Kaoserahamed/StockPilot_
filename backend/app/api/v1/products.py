@@ -13,13 +13,9 @@ from app.models.category import Category
 from app.models.product import Product
 from app.schemas.schemas import ProductCreate, ProductOut, ProductUpdate
 from app.services.audit import write_audit
+from app.services.authorization import require_write_access
 
 router = APIRouter(prefix="/products", tags=["products"])
-
-
-def _check_write(ctx: Context):
-    if ctx.role not in ("Owner", "Manager"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
 @router.get("", response_model=list[ProductOut])
@@ -63,7 +59,7 @@ def create(
     ctx: Context = Depends(get_current_context),
     db: Session = Depends(get_db),
 ):
-    _check_write(ctx)
+    require_write_access(ctx)
     from app.services import subscription_service as _subs
 
     _subs.check_can_add_product(db, ctx.business_id)
@@ -108,7 +104,7 @@ def update(
     ctx: Context = Depends(get_current_context),
     db: Session = Depends(get_db),
 ):
-    _check_write(ctx)
+    require_write_access(ctx)
     p = db.query(Product).filter(Product.id == pid, Product.business_id == ctx.business_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
@@ -144,7 +140,7 @@ def update(
 def deactivate(
     pid: int, ctx: Context = Depends(get_current_context), db: Session = Depends(get_db)
 ):
-    _check_write(ctx)
+    require_write_access(ctx)
     p = db.query(Product).filter(Product.id == pid, Product.business_id == ctx.business_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
@@ -166,7 +162,7 @@ def deactivate(
 def activate(pid: int, ctx: Context = Depends(get_current_context), db: Session = Depends(get_db)):
     """Re-activate a deactivated product (idempotent — activating an active
     product simply returns it unchanged)."""
-    _check_write(ctx)
+    require_write_access(ctx)
     p = db.query(Product).filter(Product.id == pid, Product.business_id == ctx.business_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
@@ -191,7 +187,7 @@ def upload_image(
     ctx: Context = Depends(get_current_context),
     db: Session = Depends(get_db),
 ):
-    _check_write(ctx)
+    require_write_access(ctx)
     p = db.query(Product).filter(Product.id == pid, Product.business_id == ctx.business_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Not found")

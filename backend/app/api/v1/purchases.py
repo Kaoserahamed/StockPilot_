@@ -12,17 +12,13 @@ from app.models.product import Product
 from app.models.transactions import Purchase, PurchaseItem
 from app.schemas.schemas import PurchaseCreate, PurchaseItemOut, PurchaseOut, PurchasePayRequest
 from app.services.audit import write_audit
+from app.services.authorization import require_write_access
 from app.services.serializers import purchase_to_out, purchases_to_out
 
 logger = get_logger(__name__)
 error_tracker = get_error_tracker()
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
-
-
-def _check_write(ctx: Context):
-    if ctx.role not in ("Owner", "Manager"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
 @router.get("", response_model=list[PurchaseOut])
@@ -47,7 +43,7 @@ def pay(
     db: Session = Depends(get_db),
 ):
     """FR-10.8: record payment against a purchase, update supplier balance."""
-    _check_write(ctx)
+    require_write_access(ctx)
     p = (
         db.query(Purchase)
         .filter(Purchase.id == pid, Purchase.business_id == ctx.business_id)
@@ -82,7 +78,7 @@ def pay(
 @router.post("/{pid}/cancel", response_model=PurchaseOut)
 def cancel(pid: int, ctx: Context = Depends(get_current_context), db: Session = Depends(get_db)):
     """Cancel a purchase: reverse added stock, restore supplier balance."""
-    _check_write(ctx)
+    require_write_access(ctx)
     p = (
         db.query(Purchase)
         .filter(Purchase.id == pid, Purchase.business_id == ctx.business_id)
@@ -144,7 +140,7 @@ def create(
     db: Session = Depends(get_db),
 ):
     """FR-10: multi-item purchase. Totals auto-calculated, stock up on confirm."""
-    _check_write(ctx)
+    require_write_access(ctx)
     
     logger.info(
         "Creating purchase",
