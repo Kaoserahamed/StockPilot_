@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import Context, get_current_context
+from app.core.logging_config import get_logger
 from app.db.session import get_db
 from app.models.party import Supplier
 from app.models.product import Product
@@ -11,6 +12,8 @@ from app.models.transactions import Purchase, PurchaseItem
 from app.schemas.schemas import PurchaseCreate, PurchaseItemOut, PurchaseOut, PurchasePayRequest
 from app.services.audit import write_audit
 from app.services.serializers import purchase_to_out, purchases_to_out
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
 
@@ -140,6 +143,17 @@ def create(
 ):
     """FR-10: multi-item purchase. Totals auto-calculated, stock up on confirm."""
     _check_write(ctx)
+    
+    logger.info(
+        "Creating purchase",
+        extra={
+            "supplier_id": payload.supplier_id,
+            "items_count": len(payload.items),
+            "business_id": ctx.business_id,
+            "user_id": ctx.user.id,
+        },
+    )
+    
     sup = (
         db.query(Supplier)
         .filter(Supplier.id == payload.supplier_id, Supplier.business_id == ctx.business_id)
@@ -218,6 +232,17 @@ def create(
     )
     db.commit()
     db.refresh(pur)
+    
+    logger.info(
+        "Purchase created",
+        extra={
+            "purchase_id": pur.id,
+            "total_amount": float(pur.total_amount),
+            "supplier_id": pur.supplier_id,
+            "business_id": ctx.business_id,
+        },
+    )
+    
     return purchase_to_out(db, pur)
 
 

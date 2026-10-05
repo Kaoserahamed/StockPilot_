@@ -2,12 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import Context, get_current_context
+from app.core.logging_config import get_logger
 from app.db.session import get_db
 from app.models.party import Customer
 from app.models.product import Product
 from app.models.sales import Sale, SaleItem
 from app.schemas.schemas import CheckoutRequest, SaleCancelRequest, SaleItemOut, SaleOut
 from app.services.serializers import sale_to_out, sales_to_out
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["sales"])
 pos = APIRouter(prefix="/pos", tags=["pos"])
@@ -70,6 +73,16 @@ def checkout(
     from app.models.inventory import InventoryTransaction
     from app.services.audit import write_audit
     from app.services.invoice_service import next_invoice_no
+
+    logger.info(
+        "Processing checkout",
+        extra={
+            "business_id": ctx.business_id,
+            "user_id": ctx.user.id,
+            "items_count": len(payload.items),
+            "payment_method": payload.payment_method,
+        },
+    )
 
     if ctx.role not in ("Owner", "Manager", "Cashier"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -174,6 +187,17 @@ def checkout(
     )
     db.commit()
     db.refresh(sale)
+    
+    logger.info(
+        "Checkout completed",
+        extra={
+            "sale_id": sale.id,
+            "invoice_no": sale.invoice_no,
+            "total_amount": float(sale.total_amount),
+            "business_id": ctx.business_id,
+        },
+    )
+    
     return sale_to_out(db, sale)
 
 
@@ -219,6 +243,16 @@ def cancel_sale(
     from app.models.party import Customer as _Customer
     from app.models.product import Product as _Product
     from app.services.audit import write_audit
+
+    logger.info(
+        "Cancelling sale",
+        extra={
+            "sale_id": sale_id,
+            "reason": payload.reason,
+            "business_id": ctx.business_id,
+            "user_id": ctx.user.id,
+        },
+    )
 
     if ctx.role not in ("Owner", "Manager"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
