@@ -117,9 +117,9 @@ TanStack Query caching reads and `useOptimisticUpdate` masking write latency.
 
 ## Observability & hardening
 
-- `core/logging_config`: structlog-style JSON logs in production
+- `core/logging_config`: structured JSON logs via `python-json-logger` in production
   (`JSON_LOGS=true`), human-readable locally; every record carries a
-  request id.
+  correlation field (`app`) and standard fields (timestamp, level, name, message).
 - `core/middleware`: `RequestContextMiddleware` (id + timing),
   `SecurityHeadersMiddleware` (HSTS/CSP/X-Frame…), `CacheHeadersMiddleware`.
 - `core/exceptions`: uniform `{error: {code, message}}` envelope for every
