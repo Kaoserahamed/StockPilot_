@@ -38,11 +38,11 @@ export default defineConfig({
         // Floors over lib/, hooks/, services/ and components/ (the modules that
         // carry logic). With `all: true`, adding an untested module lowers the
         // number and fails the build - that is the point: new code arrives with
-        // its tests. Raise these as the measured numbers climb.
-        lines: 70,
-        functions: 70,
-        branches: 70,
-        statements: 70,
+        // its tests. Raised to 80% per DataFactor quality recommendation.
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
       },
     },
   },
