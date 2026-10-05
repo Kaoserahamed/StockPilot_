@@ -69,6 +69,7 @@ python-multipart==0.0.32
 PyYAML==6.0.3
 reportlab==5.0.1
 requests==2.34.2
+sentry-sdk==2.22.0
 slowapi==0.1.10
 SQLAlchemy==2.0.54
 starlette==1.7.0

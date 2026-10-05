@@ -51,4 +51,5 @@ PyYAML==6.0.3  # generates docs/api/openapi.yaml from the live app schema
 # --- Observability & hardening ----------------------------------------------
 python-json-logger==4.2.0
 slowapi==0.1.10
+sentry-sdk==2.22.0  # Optional crash reporting; gracefully degrades if DSN unset
 

@@ -111,6 +111,7 @@ reportlab==5.0.1
 requests==2.34.2
 rich==15.0.0
 ruff==0.16.7
+sentry-sdk==2.22.0
 setuptools==84.0.0
 slowapi==0.1.10
 sortedcontainers==2.4.0
