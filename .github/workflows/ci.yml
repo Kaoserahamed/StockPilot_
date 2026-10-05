@@ -128,6 +128,53 @@ jobs:
         run: pip-audit -r requirements.lock
 
   # ---------------------------------------------------------------------------
+  # Backend: integration tests against real Postgres
+  # ---------------------------------------------------------------------------
+  backend-integration:
+    name: backend / postgres integration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: stockpilot_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: stockpilot_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql+psycopg2://stockpilot_test:test_password@localhost:5432/stockpilot_test
+      SECRET_KEY: ci-only-secret-not-used-in-production
+      ENVIRONMENT: test
+      JSON_LOGS: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.lock
+            backend/requirements-dev.lock
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.lock
+
+      - name: Run integration tests
+        run: pytest tests/test_migrations.py -v
+
+  # ---------------------------------------------------------------------------
   # Backend: lockfile drift check (fail if uv.lock is stale)
   # ---------------------------------------------------------------------------
   backend-lock-drift:
