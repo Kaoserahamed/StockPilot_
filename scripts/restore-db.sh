@@ -12,9 +12,8 @@ DB_NAME="${DB_NAME:-stockpilot}"
 DB_USER="${DB_USER:-stockpilot}"
 
 # SECURITY: No default password is provided - script will fail if DB_PASSWORD
-# is not set in the environment. PGPASSWORD is ONLY sourced from DB_PASSWORD.
+# is not set in the environment. Password is passed via connection string.
 : "${DB_PASSWORD:?DB_PASSWORD is not set. Export it before running this script; no default password is provided.}"
-export PGPASSWORD="${DB_PASSWORD}"  # pragma: allowlist secret
 
 if [ -z "${1:-}" ]; then
   echo "Usage: $0 <backup_file>"
@@ -36,11 +35,14 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
+# Use connection string to avoid exposing password in environment
+DB_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+
 echo "[restore] Restoring from ${BACKUP_FILE}..."
 gunzip -c "$BACKUP_FILE" | pg_restore \
-  -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+  "$DB_URL" \
   --clean --if-exists --no-owner --no-privileges \
-  -d "$DB_NAME" -
+  -
 
 echo "[restore] Complete."
 
