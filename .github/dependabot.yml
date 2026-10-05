@@ -1,101 +1,103 @@
+# Dependabot configuration for automated dependency updates
+#
+# Checks both Python (backend) and npm (frontend) ecosystems weekly, opening PRs
+# when updates are available. Security updates are opened immediately. PRs are
+# limited to avoid overwhelming the review queue.
+#
+# GitHub automatically runs CI on dependabot branches; a green build is required
+# before the PR can merge. The bot respects version constraints in manifests
+# (exact pins for Python, semver ranges for npm).
+#
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
 version: 2
+
 updates:
-  # ---------------------------------------------------------------------------
-  # Python dependencies (backend)
-  # ---------------------------------------------------------------------------
+  # Backend Python dependencies
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "Asia/Dhaka"
+      time: "09:00"
+      timezone: "UTC"
     open-pull-requests-limit: 5
-    versioning-strategy: increase
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
+    reviewers:
+      - "Kaoserahamed"
     labels:
       - "dependencies"
       - "backend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Group minor and patch updates to reduce noise
     groups:
-      python-minor-and-patch:
-        applies-to: version-updates
+      backend-minor-patch:
+        patterns:
+          - "*"
         update-types:
           - "minor"
           - "patch"
-
-  # ---------------------------------------------------------------------------
-  # JavaScript dependencies (frontend)
-  # ---------------------------------------------------------------------------
+    # Keep major version updates separate for careful review
+    ignore:
+      # Pin Next.js and React major versions until migration is planned
+      # (React 18→19 and Next.js 14→15 require breaking changes)
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    
+  # Frontend npm dependencies
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "Asia/Dhaka"
+      time: "09:00"
+      timezone: "UTC"
     open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
+    reviewers:
+      - "Kaoserahamed"
     labels:
       - "dependencies"
       - "frontend"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Group minor and patch updates to reduce noise
     groups:
-      npm-minor-and-patch:
-        applies-to: version-updates
+      frontend-minor-patch:
+        patterns:
+          - "*"
         update-types:
           - "minor"
           - "patch"
+    # Major updates reviewed individually
+    ignore:
+      # Defer React 18→19 migration until ready
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      # Defer Next.js 14→16 migration (breaking changes)
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 5→7 requires careful review
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
-  # ---------------------------------------------------------------------------
-  # Container base images used by the three Dockerfiles
-  # ---------------------------------------------------------------------------
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Asia/Dhaka"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "chore(docker)"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  - package-ecosystem: "docker"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Asia/Dhaka"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "chore(docker)"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  # ---------------------------------------------------------------------------
-  # GitHub Actions used by the CI workflow
-  # ---------------------------------------------------------------------------
+  # GitHub Actions (workflow dependencies)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
-      timezone: "Asia/Dhaka"
+      time: "09:00"
+      timezone: "UTC"
     open-pull-requests-limit: 3
-    commit-message:
-      prefix: "ci(deps)"
-      include: "scope"
+    reviewers:
+      - "Kaoserahamed"
     labels:
       - "dependencies"
       - "ci"
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
