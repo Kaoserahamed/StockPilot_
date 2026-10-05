@@ -12,22 +12,22 @@
 # =============================================================================
 
 # --- Web framework -----------------------------------------------------------
-fastapi==0.141.1
-uvicorn[standard]==0.35.0
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
 
 # --- Database ----------------------------------------------------------------
-SQLAlchemy==2.0.54
-alembic==1.16.5
-psycopg2-binary==2.9.12   # PostgreSQL driver (production)
-PyMySQL==1.1.2            # MySQL driver (legacy local installs)
+SQLAlchemy==2.1.1
+alembic==1.20.0
+psycopg2-binary==2.9.13   # PostgreSQL driver (production)
+PyMySQL==1.2.3            # MySQL driver (legacy local installs)
 
 # --- Validation & settings ---------------------------------------------------
-pydantic==2.11.7
+pydantic==2.13.5
 pydantic-settings==2.15.0
-email-validator==2.2.0
+email-validator==2.3.0
 
 # --- Authentication ----------------------------------------------------------
-PyJWT==2.13.0  # clears the 12 advisories pip-audit reported for 2.10.1
+PyJWT==2.15.1  # clears the 12 advisories pip-audit reported for 2.10.1
                # (PYSEC-2025-183 + PYSEC-2026-120/-175..-179, JWT alg
                # confusion / header handling). 2.11+ needs cryptography>=46
                # for its optional crypto extras; the runtime install already
