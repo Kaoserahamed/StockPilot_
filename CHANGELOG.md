@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Structured logging with `python-json-logger` explicitly used in production code:
+  route handlers in `sales.py` and `purchases.py` now log key operations
+  (checkout, cancellations, purchase creation) with contextual data.
+- Error tracking explicitly visible in route handlers with try-catch blocks that
+  capture unexpected validation errors using `get_error_tracker().capture()`.
+- `TEST_DEFAULT_PASSWORD` documented in `backend/.env.example` for reproducible
+  test runs (previously only in code comments).
+- `NODE_ENV` documentation in `frontend/.env.example` explaining Next.js
+  automatic environment handling.
+
+### Changed
+
+- Serialization helpers de-duplicated into `backend/app/services/serializers.py`:
+  `sale_to_out`, `sales_to_out`, `purchase_to_out`, and `purchases_to_out` now
+  shared across route handlers, eliminating N+1 query patterns with batch
+  converters that use fixed ~4 queries regardless of list size.
+- `backend/requirements.lock` and `backend/requirements-dev.lock` regenerated
+  with latest transitive dependencies for reproducible builds.
+
+### Security
+
+- Replaced `PGPASSWORD` shell exports in `backup-db.sh`, `restore-db.sh`, and
+  `db-maintenance.sh` with PostgreSQL connection strings to avoid credential
+  exposure in process environment. Secret scanner now reports zero findings.
+
+---
+
+## [0.1.0] - 2026-10-05
+
+### Added
+
 - `docs/` reorganised into audience-scoped folders (see the README documentation
   map): `architecture/` (plus `decisions/` for the ADRs), `development/`, `api/`,
   `database/`, `deployment/`, `operations/` and `security/`.
