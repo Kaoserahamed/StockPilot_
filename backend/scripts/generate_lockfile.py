@@ -126,6 +126,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    manifests: Sequence[Path]
     if args.dev:
         manifests = (RUNTIME_REQUIREMENTS, DEV_REQUIREMENTS)
         target, header = DEV_LOCKFILE, DEV_HEADER

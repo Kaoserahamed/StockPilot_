@@ -27,7 +27,7 @@ pydantic-settings==2.15.0
 email-validator==2.2.0
 
 # --- Authentication ----------------------------------------------------------
-PyJWT==2.13.0  # clears the 12 advisories pip-audit reported for 2.10.1
+PyJWT==2.15.1  # clears the 8 advisories pip-audit reported for 2.13.0
                # (PYSEC-2025-183 + PYSEC-2026-120/-175..-179, JWT alg
                # confusion / header handling). 2.11+ needs cryptography>=46
                # for its optional crypto extras; the runtime install already

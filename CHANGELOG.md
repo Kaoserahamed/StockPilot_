@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `PyJWT` bumped `2.13.0` → `2.15.1`, clearing the eight advisories
+  (`PYSEC-2026-4140..4183`) that `pip-audit` reported against the locked
+  runtime closure. `backend/requirements.lock` and `requirements-dev.lock`
+  regenerated with `python scripts/generate_lockfile.py` (67 and 115 pinned
+  packages); `pip-audit -r requirements.lock` now reports no known
+  vulnerabilities.
 - Serialization helpers de-duplicated into `backend/app/services/serializers.py`:
   `sale_to_out`, `sales_to_out`, `purchase_to_out`, and `purchases_to_out` now
   shared across route handlers, eliminating N+1 query patterns with batch
@@ -38,6 +44,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route, tenant, actor and fingerprint tags on the Sentry scope), degrades to
   log-only when the SDK is absent or fails, and is covered by
   `backend/tests/test_error_tracking.py`.
+- CI was red at `main`: `backend-lint` failed on an unused import and
+  formatting drift, `backend-test`/`backend-lock-drift` failed because
+  `sentry-sdk` was missing from `pyproject.toml` and `uv.lock`, and
+  `frontend-check` failed because the POS tests spied on `'../lib/api'` while
+  the pages import `'@/lib/api'` (two distinct modules, so real XHRs escaped to
+  jsdom). All four jobs are green again; `ci_runs_lint`,
+  `ci_runs_typecheck` and `ci_runs_tests` now describe reality.
+- `backend/scripts/generate_lockfile.py` assigned a 2-tuple then a 1-tuple to
+  `manifests`, which mypy rejected on the `--dev` path. The variable is now
+  annotated `Sequence[Path]`, so `backend-mypy` is clean over all 75 sources.
 - Backend lint/format was failing at HEAD, so the `backend-lint` CI job was
   red: an unused `SaleItemOut` import in `backend/app/api/v1/sales.py`,
   trailing whitespace in four files, and a leftover `if TYPE_CHECKING: pass`
