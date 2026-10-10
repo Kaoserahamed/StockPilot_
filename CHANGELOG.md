@@ -44,6 +44,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route, tenant, actor and fingerprint tags on the Sentry scope), degrades to
   log-only when the SDK is absent or fails, and is covered by
   `backend/tests/test_error_tracking.py`.
+- `sentry-sdk` was added to `backend/requirements.txt` but never to
+  `pyproject.toml`, so `backend/tests/test_dependency_manifests.py` failed and
+  the `backend-lock-drift` CI job was red. The pin is now declared in
+  `[project].dependencies` and `backend/uv.lock` regenerated (70 packages).
+- `backend/tests/test_migrations.py` referenced undefined `command` and
+  `config` names in `test_alembic_version_table_exists` (a `NameError` the
+  first time the Postgres integration job ran it), and asserted blind
+  `Exception` types. Both `pytest.raises` blocks now expect
+  `sqlalchemy.exc.IntegrityError` and the dead line is removed.
+- `frontend/tests/pages.test.tsx` spied on the relative `../lib/api` specifier
+  while the pages import `@/lib/api`. Vitest treats those as distinct modules,
+  so the spy never intercepted the app's calls - they escaped to jsdom as real
+  XHRs and `search input triggers product search` failed with 0 calls. The file
+  now mocks the alias specifier via `vi.mock('@/lib/api', ...)` with
+  `vi.hoisted` spies; all 15 tests pass.
+- Backend lint now passes at HEAD: an unused `SaleItemOut` import in
+  `app/api/v1/sales.py`, stray blank-line whitespace and formatting drift
+  across 5 files are fixed. `ruff check` and `ruff format --check` are green
+  with the CI-pinned ruff 0.16.7.
 - `backend/tests/pages.test.tsx` spied on the relative `../lib/api` specifier
   while the route pages import the `@/lib/api` alias, so the app kept using the
   real axios client and its requests escaped to jsdom. The file now mocks the
