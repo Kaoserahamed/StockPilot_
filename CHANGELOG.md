@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `backend/tests/test_service_units.py`: focused unit tests for the two thinnest
+  service modules, driven directly against the in-memory session so guard
+  clauses are exercised without going through the HTTP layer. Covers
+  `app.services.audit.write_audit` (append-only trail, optional system user,
+  and the 2000-char truncation rule that is only reachable with oversized
+  payloads) and `app.services.inventory_service.apply_stock_change` (zero-change
+  and unknown-product rejection, tenant isolation, the below-zero block on
+  non-adjustment movements, the adjustment exception that may record a
+  shortfall, and landing on exactly zero). Backend coverage rises to 90.4%.
 - `docs/dependencies.md`: an auditable snapshot of every direct runtime and dev
   dependency (declared floor vs. the version the committed lockfile resolves to),
   which manifest is authoritative, and the exact commands to re-check freshness.
