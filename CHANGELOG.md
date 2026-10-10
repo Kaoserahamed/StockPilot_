@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `docs/dependencies.md`: an auditable snapshot of every direct runtime and dev
+  dependency (declared floor vs. the version the committed lockfile resolves to),
+  which manifest is authoritative, and the exact commands to re-check freshness.
+  Indexed from the README docs table. Answers "is this out of date?" without
+  re-running a scan.
 - Structured logging with `python-json-logger` explicitly used in production code:
   route handlers in `sales.py` and `purchases.py` now log key operations
   (checkout, cancellations, purchase creation) with contextual data.

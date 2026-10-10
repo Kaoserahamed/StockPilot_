@@ -140,6 +140,7 @@ The full set lives under [`docs/`](docs/), organised by who needs it:
 | [`development/setup.md`](docs/development/setup.md) | new contributors | prerequisites, install, configure, run, troubleshooting |
 | [`development/git-workflow.md`](docs/development/git-workflow.md) | contributors | branches, commits, PRs, dependency PRs, releases |
 | [`development/testing.md`](docs/development/testing.md) | contributors | suites, coverage policy, how to read failures |
+| [`dependencies.md`](docs/dependencies.md) | contributors / ops | authoritative manifests, pinned versions, how to audit freshness |
 | [`api/authentication.md`](docs/api/authentication.md) | integrators | tokens, tenancy, roles, errors, endpoint catalogue |
 | [`api/openapi.yaml`](docs/api/openapi.yaml) | integrators | generated OpenAPI 3.1 contract (80 paths) |
 | [`database/schema.md`](docs/database/schema.md) | engineers | table-by-table reference, constraints, indexes |
