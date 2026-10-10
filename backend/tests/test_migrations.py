@@ -89,7 +89,7 @@ def test_migrations_upgrade_head(postgres_engine: Engine, postgres_url: str) -> 
         "sale_items",
         "inventory_transactions",
         "expenses",
-        "audit_log",
+        "audit_logs",
     ]
 
     for table in expected_tables:
@@ -132,8 +132,8 @@ def test_postgres_json_columns_work(postgres_engine: Engine, postgres_url: str) 
         result = session.execute(
             text(
                 """
-                INSERT INTO businesses (name, email, phone, industry, currency, created_at)
-                VALUES ('Test Business', 'test@example.com', '+1234567890', 'Retail', 'USD', NOW())
+                INSERT INTO businesses (name, email, phone, currency, created_at)
+                VALUES ('Test Business', 'test@example.com', '+1234567890', 'USD', NOW())
                 RETURNING id
                 """
             )
@@ -175,8 +175,8 @@ def test_postgres_constraints_enforced(postgres_engine: Engine, postgres_url: st
         session.execute(
             text(
                 """
-                INSERT INTO businesses (name, email, phone, industry, currency, created_at)
-                VALUES ('Biz1', 'unique@test.com', '+1111111111', 'Retail', 'USD', NOW())
+                INSERT INTO businesses (name, email, phone, currency, created_at)
+                VALUES ('Biz1', 'unique@test.com', '+1111111111', 'USD', NOW())
                 """
             )
         )
@@ -187,8 +187,8 @@ def test_postgres_constraints_enforced(postgres_engine: Engine, postgres_url: st
             session.execute(
                 text(
                     """
-                    INSERT INTO businesses (name, email, phone, industry, currency, created_at)
-                    VALUES ('Biz2', 'unique@test.com', '+2222222222', 'Retail', 'USD', NOW())
+                    INSERT INTO businesses (name, email, phone, currency, created_at)
+                    VALUES ('Biz2', 'unique@test.com', '+2222222222', 'USD', NOW())
                     """
                 )
             )
@@ -214,8 +214,8 @@ def test_postgres_cascades_work(postgres_engine: Engine, postgres_url: str) -> N
         result = session.execute(
             text(
                 """
-                INSERT INTO businesses (name, email, phone, industry, currency, created_at)
-                VALUES ('Cascade Test', 'cascade@test.com', '+9999999999', 'Retail', 'USD', NOW())
+                INSERT INTO businesses (name, email, phone, currency, created_at)
+                VALUES ('Cascade Test', 'cascade@test.com', '+9999999999', 'USD', NOW())
                 RETURNING id
                 """
             )

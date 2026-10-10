@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `backend/tests/test_migration_sql.py` statically validates the hand-written SQL
+  in the Postgres integration suite against `Base.metadata`, so a typo such as
+  the `audit_log` → `audit_logs` table rename cannot ship red in the one job that
+  only runs in CI. It asserts against the model DDL (available everywhere) and
+  carries a floor so a silently inert regex fails loudly instead of passing.
 - The guard-clause tests in `frontend/tests/auth.test.tsx` and
   `frontend/tests/store.test.tsx` no longer let React's dev-mode render throw
   escape to the global handler. Rendering a throwing hook outside its provider
