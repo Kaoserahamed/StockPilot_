@@ -9,14 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `frontend/tests/setup.ts` now intercepts React's dev-mode `reportError`.
-  React routes boundary-caught render errors through the global `reportError`,
-  which jsdom implements as an *uncaught*-exception reporter - so the guard-clause
-  tests (which deliberately render a throwing hook) printed false "Uncaught"
-  noise and, under Vitest 4, exited the suite non-zero even with every assertion
-  green. Caught errors are now collected in an observable `recoverableErrors`
-  registry instead of being reported as uncaught; genuinely uncaught exceptions
-  and failed assertions still fail the run.
+- The guard-clause tests in `frontend/tests/auth.test.tsx` and
+  `frontend/tests/store.test.tsx` no longer let React's dev-mode render throw
+  escape to the global handler. Rendering a throwing hook outside its provider
+  made Vitest 4 record an unhandled error and exit the suite non-zero even with
+  every assertion green; the throw is now caught by a test-local error boundary
+  and asserted on its fallback text, so a genuine regression still fails the
+  run. Both tests also previously issued real HTTP requests against the
+  non-mocked client.
 - `backend/tests/test_service_units.py`: focused unit tests for the two thinnest
   service modules, driven directly against the in-memory session so guard
   clauses are exercised without going through the HTTP layer. Covers
