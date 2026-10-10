@@ -44,6 +44,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route, tenant, actor and fingerprint tags on the Sentry scope), degrades to
   log-only when the SDK is absent or fails, and is covered by
   `backend/tests/test_error_tracking.py`.
+- `backend/tests/pages.test.tsx` spied on the relative `../lib/api` specifier
+  while the route pages import the `@/lib/api` alias, so the app kept using the
+  real axios client and its requests escaped to jsdom. The file now mocks the
+  alias specifier, so the POS search test exercises the mocked client and no
+  longer performs real HTTP.
+- `sentry-sdk` was pinned in `backend/requirements.txt` but missing from
+  `backend/pyproject.toml` and `backend/uv.lock`, which failed the
+  `backend-lint`, `backend-test` and `backend-lock-drift` CI jobs. All three
+  manifests now agree and `uv lock --check` passes.
+- `backend/tests/test_migrations.py` referenced undefined `command`/`config`
+  names (an F821 lint failure that would raise `NameError` in the Postgres
+  integration job), and asserted blind `Exception` instead of `IntegrityError`.
+- Backend lint and formatting now pass across `app/`, `tests/` and `scripts/`
+  with ruff 0.16.7 (unused import in `app/api/v1/sales.py` removed, plus
+  whitespace and formatting fixes).
 - CI was red at `main`: `backend-lint` failed on an unused import and
   formatting drift, `backend-test`/`backend-lock-drift` failed because
   `sentry-sdk` was missing from `pyproject.toml` and `uv.lock`, and
