@@ -38,6 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   route, tenant, actor and fingerprint tags on the Sentry scope), degrades to
   log-only when the SDK is absent or fails, and is covered by
   `backend/tests/test_error_tracking.py`.
+- Backend lint/format was failing at HEAD, so the `backend-lint` CI job was
+  red: an unused `SaleItemOut` import in `backend/app/api/v1/sales.py`,
+  trailing whitespace in four files, and a leftover `if TYPE_CHECKING: pass`
+  block in `backend/tests/test_error_tracking.py`. `ruff check` and
+  `ruff format --check` are now clean across `app`, `tests` and `scripts`.
+- `backend/tests/test_migrations.py` raised a `NameError` in
+  `test_alembic_version_table_exists` (a dead `command.upgrade(config, "head")`
+  call referencing undefined names), which would have failed the
+  `backend-integration` CI job; the redundant line was removed and the blind
+  `pytest.raises(Exception)` assertions were narrowed to `IntegrityError`.
+- `sentry-sdk` was added to `backend/requirements.txt` without updating
+  `backend/pyproject.toml` or `backend/uv.lock`, which broke
+  `test_dependency_manifests.py` (and therefore the `backend-test` job). The
+  pin was added to the `[project].dependencies` table and `uv.lock` was
+  regenerated; `uv lock --check` now passes.
 
 ### Security
 

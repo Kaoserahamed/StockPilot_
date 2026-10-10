@@ -10,7 +10,7 @@ from app.db.session import get_db
 from app.models.party import Supplier
 from app.models.product import Product
 from app.models.transactions import Purchase, PurchaseItem
-from app.schemas.schemas import PurchaseCreate, PurchaseItemOut, PurchaseOut, PurchasePayRequest
+from app.schemas.schemas import PurchaseCreate, PurchaseOut, PurchasePayRequest
 from app.services.audit import write_audit
 from app.services.authorization import require_write_access
 from app.services.serializers import purchase_to_out, purchases_to_out
@@ -141,7 +141,7 @@ def create(
 ):
     """FR-10: multi-item purchase. Totals auto-calculated, stock up on confirm."""
     require_write_access(ctx)
-    
+
     logger.info(
         "Creating purchase",
         extra={
@@ -151,7 +151,7 @@ def create(
             "user_id": ctx.user.id,
         },
     )
-    
+
     sup = (
         db.query(Supplier)
         .filter(Supplier.id == payload.supplier_id, Supplier.business_id == ctx.business_id)
@@ -230,7 +230,7 @@ def create(
     )
     db.commit()
     db.refresh(pur)
-    
+
     logger.info(
         "Purchase created",
         extra={
@@ -240,7 +240,7 @@ def create(
             "business_id": ctx.business_id,
         },
     )
-    
+
     return purchase_to_out(db, pur)
 
 

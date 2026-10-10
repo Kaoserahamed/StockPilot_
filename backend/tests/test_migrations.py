@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
 @pytest.fixture(scope="module")
 def postgres_url() -> str:
     """Return Postgres connection URL from environment or skip if not available.
-    
+
     CI sets DATABASE_URL to point to the postgres service container.
     Local runs can set it manually or the tests will be skipped.
     """
@@ -61,21 +62,19 @@ def run_alembic(command: str, postgres_url: str) -> None:
         )
 
 
-def test_migrations_upgrade_head(
-    postgres_engine: Engine, postgres_url: str
-) -> None:
+def test_migrations_upgrade_head(postgres_engine: Engine, postgres_url: str) -> None:
     """Verify migrations can be applied cleanly from an empty database.
-    
+
     This is the primary migration test: can a fresh deployment run
     `alembic upgrade head` successfully?
     """
     # Apply all migrations via CLI
     run_alembic("upgrade head", postgres_url)
-    
+
     # Verify key tables exist
     inspector = inspect(postgres_engine)
     tables = inspector.get_table_names()
-    
+
     expected_tables = [
         "users",
         "businesses",
@@ -92,26 +91,26 @@ def test_migrations_upgrade_head(
         "expenses",
         "audit_log",
     ]
-    
+
     for table in expected_tables:
         assert table in tables, f"Expected table '{table}' not found after migration"
 
 
 def test_migrations_downgrade_base(postgres_url: str) -> None:
     """Verify migrations can be rolled back cleanly.
-    
+
     Important for disaster recovery: if a migration causes issues in production,
     can we roll it back without data loss or corruption?
     """
     # Roll back all migrations via CLI
     run_alembic("downgrade base", postgres_url)
-    
+
     # After downgrade to base, no application tables should exist
     # (alembic_version table may remain, which is fine)
     engine = create_engine(postgres_url, echo=False)
     inspector = inspect(engine)
     tables = inspector.get_table_names()
-    
+
     # Core business tables should be gone
     forbidden_tables = ["users", "products", "sales", "purchases"]
     for table in forbidden_tables:
@@ -120,13 +119,13 @@ def test_migrations_downgrade_base(postgres_url: str) -> None:
 
 def test_postgres_json_columns_work(postgres_engine: Engine, postgres_url: str) -> None:
     """Verify Postgres JSON columns are usable (not supported in SQLite).
-    
+
     Some models use JSON columns for flexible data (e.g., metadata, settings).
     This test ensures those columns work correctly with real Postgres.
     """
     # Re-apply migrations for this test (previous test rolled back)
     run_alembic("upgrade head", postgres_url)
-    
+
     # Test JSON column operations
     with Session(postgres_engine) as session:
         # Insert a business with JSON metadata (if such a column exists)
@@ -141,16 +140,15 @@ def test_postgres_json_columns_work(postgres_engine: Engine, postgres_url: str) 
         )
         business_id = result.scalar()
         session.commit()
-        
+
         # Verify we can read it back
         result = session.execute(
-            text("SELECT name, email FROM businesses WHERE id = :id"),
-            {"id": business_id}
+            text("SELECT name, email FROM businesses WHERE id = :id"), {"id": business_id}
         )
         row = result.fetchone()
         assert row is not None
         assert row[0] == "Test Business"
-        
+
         # Clean up
         session.execute(text("DELETE FROM businesses WHERE id = :id"), {"id": business_id})
         session.commit()
@@ -158,22 +156,20 @@ def test_postgres_json_columns_work(postgres_engine: Engine, postgres_url: str) 
 
 def test_postgres_constraints_enforced(postgres_engine: Engine, postgres_url: str) -> None:
     """Verify database constraints (unique, foreign key, not null) are enforced.
-    
+
     SQLite is lenient with constraints; Postgres enforces them strictly.
     This test ensures our schema integrity is maintained in production.
     """
     # Ensure migrations are applied
     run_alembic("upgrade head", postgres_url)
-    
+
     with Session(postgres_engine) as session:
         # Test 1: NOT NULL constraint on required fields
-        with pytest.raises(Exception):  # SQLAlchemy wraps this in IntegrityError
-            session.execute(
-                text("INSERT INTO businesses (name) VALUES (NULL)")
-            )
+        with pytest.raises(IntegrityError):
+            session.execute(text("INSERT INTO businesses (name) VALUES (NULL)"))
             session.commit()
         session.rollback()
-        
+
         # Test 2: UNIQUE constraint on business email
         # First insert should succeed
         session.execute(
@@ -185,9 +181,9 @@ def test_postgres_constraints_enforced(postgres_engine: Engine, postgres_url: st
             )
         )
         session.commit()
-        
+
         # Duplicate email should fail
-        with pytest.raises(Exception):  # IntegrityError for duplicate key
+        with pytest.raises(IntegrityError):  # duplicate key
             session.execute(
                 text(
                     """
@@ -198,7 +194,7 @@ def test_postgres_constraints_enforced(postgres_engine: Engine, postgres_url: st
             )
             session.commit()
         session.rollback()
-        
+
         # Clean up
         session.execute(text("DELETE FROM businesses WHERE email = 'unique@test.com'"))
         session.commit()
@@ -206,13 +202,13 @@ def test_postgres_constraints_enforced(postgres_engine: Engine, postgres_url: st
 
 def test_postgres_cascades_work(postgres_engine: Engine, postgres_url: str) -> None:
     """Verify ON DELETE CASCADE relationships work correctly.
-    
+
     When a business is deleted, all related records (products, sales, etc.)
     should be automatically deleted via CASCADE constraints.
     """
     # Ensure migrations are applied
     run_alembic("upgrade head", postgres_url)
-    
+
     with Session(postgres_engine) as session:
         # Create a business
         result = session.execute(
@@ -226,7 +222,7 @@ def test_postgres_cascades_work(postgres_engine: Engine, postgres_url: str) -> N
         )
         business_id = result.scalar()
         session.commit()
-        
+
         # Create a category for this business
         result = session.execute(
             text(
@@ -236,29 +232,24 @@ def test_postgres_cascades_work(postgres_engine: Engine, postgres_url: str) -> N
                 RETURNING id
                 """
             ),
-            {"business_id": business_id}
+            {"business_id": business_id},
         )
         category_id = result.scalar()
         session.commit()
-        
+
         # Verify category exists
         result = session.execute(
-            text("SELECT COUNT(*) FROM categories WHERE id = :id"),
-            {"id": category_id}
+            text("SELECT COUNT(*) FROM categories WHERE id = :id"), {"id": category_id}
         )
         assert result.scalar() == 1
-        
+
         # Delete the business
-        session.execute(
-            text("DELETE FROM businesses WHERE id = :id"),
-            {"id": business_id}
-        )
+        session.execute(text("DELETE FROM businesses WHERE id = :id"), {"id": business_id})
         session.commit()
-        
+
         # Verify category was cascade-deleted
         result = session.execute(
-            text("SELECT COUNT(*) FROM categories WHERE id = :id"),
-            {"id": category_id}
+            text("SELECT COUNT(*) FROM categories WHERE id = :id"), {"id": category_id}
         )
         assert result.scalar() == 0, "Category should be cascade-deleted with business"
 
@@ -267,13 +258,12 @@ def test_alembic_version_table_exists(postgres_engine: Engine, postgres_url: str
     """Verify alembic version tracking table exists and has a current revision."""
     # Ensure migrations are applied
     run_alembic("upgrade head", postgres_url)
-    command.upgrade(config, "head")
-    
+
     inspector = inspect(postgres_engine)
     tables = inspector.get_table_names()
-    
+
     assert "alembic_version" in tables, "alembic_version table should exist"
-    
+
     # Verify there's a current version recorded
     with Session(postgres_engine) as session:
         result = session.execute(text("SELECT version_num FROM alembic_version"))

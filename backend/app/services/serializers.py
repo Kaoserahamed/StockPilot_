@@ -236,9 +236,7 @@ def purchases_to_out(db: Session, purchases: list[Purchase]) -> list[PurchaseOut
     }
 
     supplier_ids = [p.supplier_id for p in purchases] or [0]
-    suppliers = {
-        s.id: s for s in db.query(Supplier).filter(Supplier.id.in_(supplier_ids)).all()
-    }
+    suppliers = {s.id: s for s in db.query(Supplier).filter(Supplier.id.in_(supplier_ids)).all()}
 
     items_by_purchase: dict[int, list[PurchaseItem]] = {}
     for item in items:

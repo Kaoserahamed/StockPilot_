@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.models.party import Customer
 from app.models.product import Product
 from app.models.sales import Sale, SaleItem
-from app.schemas.schemas import CheckoutRequest, SaleCancelRequest, SaleItemOut, SaleOut
+from app.schemas.schemas import CheckoutRequest, SaleCancelRequest, SaleOut
 from app.services.serializers import sale_to_out, sales_to_out
 
 logger = get_logger(__name__)
@@ -201,7 +201,7 @@ def checkout(
     )
     db.commit()
     db.refresh(sale)
-    
+
     logger.info(
         "Checkout completed",
         extra={
@@ -211,7 +211,7 @@ def checkout(
             "business_id": ctx.business_id,
         },
     )
-    
+
     return sale_to_out(db, sale)
 
 

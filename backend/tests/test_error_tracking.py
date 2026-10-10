@@ -8,7 +8,6 @@ mode when Sentry is unavailable.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,9 +19,6 @@ from app.core.error_tracking import (
     current_context,
     get_error_tracker,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
 
 
 @pytest.fixture
@@ -189,11 +185,12 @@ def test_sentry_initializes_when_dsn_set() -> None:
     fake_dsn = "https://public@sentry.io/123456"
 
     mock_sentry = MagicMock()
-    
+
     # Patch the import inside _install_sentry
     import sys
+
     sys.modules["sentry_sdk"] = mock_sentry
-    
+
     try:
         tracker = ErrorTracker(
             environment="production",
@@ -218,9 +215,10 @@ def test_sentry_initializes_when_dsn_set() -> None:
 def test_sentry_import_error_handled_gracefully() -> None:
     """Tracker degrades to log-only if sentry-sdk is not installed."""
     fake_dsn = "https://public@sentry.io/123456"
-    
+
     # Ensure sentry_sdk is NOT importable
     import sys
+
     sentry_backup = sys.modules.get("sentry_sdk")
     if "sentry_sdk" in sys.modules:
         del sys.modules["sentry_sdk"]
@@ -252,8 +250,9 @@ def test_sentry_init_failure_handled_gracefully() -> None:
 
     mock_sentry = MagicMock()
     mock_sentry.init.side_effect = Exception("Invalid DSN format")
-    
+
     import sys
+
     sys.modules["sentry_sdk"] = mock_sentry
 
     try:
