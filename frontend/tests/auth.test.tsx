@@ -83,11 +83,32 @@ describe('AuthProvider', () => {
 
   it('refuses to be used outside a provider', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errors: Error[] = [];
+    // The guard throws during render. Rendering it bare lets React escalate the
+    // throw to the global error handler (Vitest treats that as an unhandled
+    // error), so catch it in a boundary and assert on the captured message.
+    class Catch extends React.Component<{ children: React.ReactNode }> {
+      state = { hasError: false };
+      static getDerivedStateFromError() {
+        return { hasError: true };
+      }
+      componentDidCatch(error: Error) {
+        errors.push(error);
+      }
+      render() {
+        return this.state.hasError ? null : this.props.children;
+      }
+    }
     function Bare() {
       useAuth();
       return null;
     }
-    expect(() => render(<Bare />)).toThrow('useAuth must be used inside <AuthProvider>');
+    render(
+      <Catch>
+        <Bare />
+      </Catch>
+    );
+    expect(errors.map((e) => e.message)).toContain('useAuth must be used inside <AuthProvider>');
     consoleError.mockRestore();
   });
 

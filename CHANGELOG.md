@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `frontend/tests/setup.ts` now intercepts React's dev-mode `reportError`.
+  React routes boundary-caught render errors through the global `reportError`,
+  which jsdom implements as an *uncaught*-exception reporter - so the guard-clause
+  tests (which deliberately render a throwing hook) printed false "Uncaught"
+  noise and, under Vitest 4, exited the suite non-zero even with every assertion
+  green. Caught errors are now collected in an observable `recoverableErrors`
+  registry instead of being reported as uncaught; genuinely uncaught exceptions
+  and failed assertions still fail the run.
 - `backend/tests/test_service_units.py`: focused unit tests for the two thinnest
   service modules, driven directly against the in-memory session so guard
   clauses are exercised without going through the HTTP layer. Covers
@@ -35,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `frontend/tests/pages.test.tsx`: the POS tests spied on `api` via the relative
+  specifier `../lib/api`, but the route pages import it through the `@/lib/api`
+  alias. Vitest resolves those to two distinct modules, so the spy never
+  intercepted the pages' calls - they escaped to jsdom as real XHRs (`AggregateError`)
+  and the assertions saw zero calls. The suite now mocks the alias specifier
+  directly (`vi.mock('@/lib/api', ...)`), the same pattern `auth.test.tsx` uses,
+  so the intercepted client is the one the pages actually call.
 - `PyJWT` bumped `2.13.0` → `2.15.1`, clearing the eight advisories
   (`PYSEC-2026-4140..4183`) that `pip-audit` reported against the locked
   runtime closure. `backend/requirements.lock` and `requirements-dev.lock`

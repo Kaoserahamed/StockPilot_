@@ -29,8 +29,7 @@ vi.mock('@/lib/api', () => ({
   rootApi: { get: apiGet, post: apiPost },
   attachSessionInterceptors: vi.fn(),
   downloadBlob: vi.fn(),
-  errMsg: (e: unknown, fallback = 'Request failed') =>
-    (e as Error | null)?.message || fallback,
+  errMsg: (e: unknown, fallback = 'Request failed') => (e as Error | null)?.message || fallback,
 }));
 
 /** AuthProvider mounts GET /auth/me when a token exists, so stub both verbs. */
