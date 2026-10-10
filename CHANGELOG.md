@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as work is merged, then are promoted to a
+versioned section (with a date and a git tag) at release time._
+
+## [0.3.0] - 2026-10-10
+
 ### Added
 
 - `backend/tests/test_pdf_service.py` — 22 unit tests for the ReportLab invoice
