@@ -10,8 +10,57 @@ import PosPage from '../app/pos/page';
 import ProductsPage from '../app/products/page';
 import InventoryPage from '../app/inventory/page';
 import { AuthProvider } from '../lib/auth';
-import * as apiModule from '../lib/api';
 
+// The route pages import the HTTP client through the @/lib/api alias, while
+// this file originally imported ../lib/api. Vitest treats those as two
+// distinct modules, so spying on the relative specifier never intercepts the
+// app's calls - they escaped to jsdom as real XHRs. Mocking the alias
+// specifier (the exact string the pages import) is what redirects them.
+// vi.mock factories are hoisted above every import, so the spies must be created with vi.hoisted() - a plain const would still be uninitialised
+// when the hoisted factory runs.
+const { apiGet, apiPost } = vi.hoisted(() => ({
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+}));
+
+vi.mock('@/lib/api', () => ({
+  API_ORIGIN: 'http://localhost:8000',
+  api: { get: apiGet, post: apiPost },
+  rootApi: { get: apiGet, post: apiPost },
+  attachSessionInterceptors: vi.fn(),
+  downloadBlob: vi.fn(),
+  errMsg: (e: unknown, fallback = 'Request failed') =>
+    (e as Error | null)?.message || fallback,
+}));
+
+/** AuthProvider mounts GET /auth/me when a token exists, so stub both verbs. */
+function stubAuthSession() {
+  apiPost.mockRejectedValue(new Error('not used in this test'));
+  apiGet.mockImplementation(async (url: string) => {
+    if (url.startsWith('/auth/me') || url.startsWith('/businesses/me')) {
+      return { data: { id: 1, username: 'owner', businesses: [{ id: 1, name: 'Shop' }] } };
+    }
+    throw new Error(`unexpected GET ${url}`);
+  });
+}
+
+const SEARCH_ROWS = [
+  { id: 1, name: 'Test Product', sku: 'TP001', quantity: 10, selling_price: 100 },
+];
+
+/** Serve the auth probes and the POS search from one stub. */
+function stubSearchResults() {
+  apiGet.mockImplementation(async (url: string) => {
+    // AuthProvider and the business picker each probe the session on mount.
+    if (url.startsWith('/auth/me') || url.startsWith('/businesses/me')) {
+      return { data: { id: 1, username: 'owner', businesses: [{ id: 1, name: 'Shop' }] } };
+    }
+    if (url.startsWith('/pos/search')) {
+      return { data: SEARCH_ROWS };
+    }
+    throw new Error(`unexpected GET ${url}`);
+  });
+}
 // Mock Next.js router
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -76,10 +125,10 @@ describe('authentication pages', () => {
   });
 
   it('login page shows error message on failed authentication', async () => {
-    const mockLogin = vi.fn().mockRejectedValue(new Error('Invalid credentials'));
-    vi.spyOn(apiModule, 'api', 'get').mockReturnValue({
-      post: mockLogin,
-    } as any);
+    // Sign-in must fail: every POST rejects with the API error message.
+    apiPost.mockRejectedValue(new Error('Invalid credentials'));
+    // AuthProvider mounts GET /auth/me, so expose both verbs here too.
+    apiGet.mockRejectedValue(new Error('not authed'));
 
     renderWithProviders(<Login />);
 
@@ -116,6 +165,7 @@ describe('authentication pages', () => {
 describe('pos page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stubAuthSession();
     // Mock authenticated state
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => {
       if (key === 'access_token') return 'mock-token';
@@ -138,14 +188,7 @@ describe('pos page', () => {
   });
 
   it('search input triggers product search', async () => {
-    const mockGet = vi.fn().mockResolvedValue({
-      data: [
-        { id: 1, name: 'Test Product', sku: 'TP001', quantity: 10, selling_price: 100 },
-      ],
-    });
-    vi.spyOn(apiModule, 'api', 'get').mockReturnValue({
-      get: mockGet,
-    } as any);
+    stubSearchResults();
 
     renderWithProviders(<PosPage />);
 
@@ -153,30 +196,21 @@ describe('pos page', () => {
     fireEvent.change(searchInput, { target: { value: 'Test' } });
 
     await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith(expect.stringContaining('/pos/search'));
+      expect(apiGet).toHaveBeenCalledWith(expect.stringContaining('/pos/search'));
     });
   });
 
   it('adds product to cart when add button is clicked', async () => {
-    const mockGet = vi.fn().mockResolvedValue({
-      data: [
-        { id: 1, name: 'Test Product', sku: 'TP001', quantity: 10, selling_price: 100 },
-      ],
-    });
-    vi.spyOn(apiModule, 'api', 'get').mockReturnValue({
-      get: mockGet,
-    } as any);
+    stubSearchResults();
 
     renderWithProviders(<PosPage />);
 
     const searchInput = screen.getByPlaceholderText(/type to search/i);
     fireEvent.change(searchInput, { target: { value: 'Test' } });
 
-    await waitFor(() => {
-      expect(screen.getByText('Test Product')).toBeDefined();
-    });
-
-    const addButton = screen.getByText('Add');
+    // Wait for the search result row to land before reaching for its button:
+    // the query resolves asynchronously, so the Add button does not exist yet.
+    const addButton = await screen.findByText('Add');
     fireEvent.click(addButton);
 
     await waitFor(() => {
@@ -249,4 +283,3 @@ describe('service layer entry points', () => {
     expect(typeof catalogue.listProducts).toBe('function');
   });
 });
-
