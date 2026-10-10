@@ -29,7 +29,7 @@ COPY backend/requirements.txt backend/requirements.lock ./
 
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/venv/bin/pip install --no-cache-dir -r requirements.lock.txt
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements.lock
 
 # ---------------------------------------------------------------------------
 # Runtime stage

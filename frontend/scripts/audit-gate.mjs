@@ -67,6 +67,19 @@ const DEFERRED_UPGRADES = new Map([
     },
   ],
   [
+    'braces',
+    {
+      severity: 'high',
+      advisories: ['GHSA-VFJ7-8CJW-P6XM'],
+      reason:
+        'One high advisory (stack-exhaustion denial of service through deeply nested patterns) against braces 3.x, reached only through the Tailwind v3 build toolchain: braces -> micromatch -> chokidar / fast-glob. There is no patched 3.x release (3.0.3 is the latest) and braces 4 is ESM-only, so this pin cannot move without the Tailwind v4 upgrade.',
+      mitigation:
+        "Dev-only closure (npm marks braces `dev: true`, under the tailwindcss devDependency), so it is never bundled into the client or server build. It runs only while tailwindcss or vitest globs files on a developer or CI machine, and every pattern it parses comes from this repository's own tailwind/vitest configuration rather than from request input.",
+      followUp:
+        'Resolved by the Tailwind v4 upgrade (`npm audit` itself reports `fix available: tailwindcss@4.3.3`, a semver-major change). See SECURITY.md.',
+    },
+  ],
+  [
     'postcss',
     {
       severity: 'high',
@@ -134,6 +147,59 @@ function collectAdvisoryIds(vulnerability) {
   return [...ids];
 }
 
+/**
+ * Resolve the advisory ids that actually make a package fail.
+ *
+ * npm reports two different shapes in `via`:
+ *   - an object carrying the advisory itself (`via: [{url: .../GHSA-....}]`), or
+ *   - a bare package name, meaning "vulnerable only because <that> package is".
+ *
+ * The second shape is what the whole braces -> micromatch -> chokidar / fast-glob
+ * -> tailwindcss chain produces: four packages are flagged with no advisory of
+ * their own. Reading only the objects would leave their id list empty, and the
+ * rule below requires at least one id to accept a finding - so those four could
+ * never be deferred even after their root cause is, and the gate stays red while
+ * printing the unhelpful `unknown advisory`.
+ *
+ * So the names are walked transitively down to the advisories that caused them.
+ * A package is then judged on the advisories it truly inherits, and a deferral
+ * on the root package carries to every package that depends on it.
+ */
+function resolveAdvisoryIds(vulnerability, vulnerabilities, seen = new Set()) {
+  const direct = collectAdvisoryIds(vulnerability);
+  if (direct.length > 0) return direct;
+
+  const ids = new Set();
+  for (const via of vulnerability.via ?? []) {
+    if (typeof via !== 'string') continue;
+    if (seen.has(via)) continue;
+    seen.add(via);
+    const upstream = vulnerabilities[via];
+    if (!upstream) continue;
+    for (const id of resolveAdvisoryIds(upstream, vulnerabilities, seen)) ids.add(id);
+  }
+  return [...ids];
+}
+
+/**
+ * The deferral that covers an advisory, or undefined when none does.
+ *
+ * A finding is attributed to a deferred package when that package is the one
+ * npm named (the common case) or when it is the package the advisory was
+ * raised against - `next` inherits `postcss` through the latter, because npm
+ * reports the finding on `next` while the advisory object names `postcss`.
+ */
+function findDeferral(name, ids) {
+  const own = DEFERRED_UPGRADES.get(name);
+  if (own) return { name, entry: own };
+  for (const [candidate, entry] of DEFERRED_UPGRADES) {
+    if (ids.some((id) => DEFERRED_ADVISORY_IDS.get(candidate)?.has(id))) {
+      return { name: candidate, entry };
+    }
+  }
+  return undefined;
+}
+
 function main() {
   const report = JSON.parse(runAuditJson());
   const vulnerabilities = Object.entries(report.vulnerabilities ?? {});
@@ -145,16 +211,20 @@ function main() {
     const severity = vulnerability.severity;
     if (severity !== 'high' && severity !== 'critical') continue;
 
-    const entry = DEFERRED_UPGRADES.get(name);
-    const ids = collectAdvisoryIds(vulnerability);
+    const ids = resolveAdvisoryIds(vulnerability, report.vulnerabilities ?? {});
+    const deferral = findDeferral(name, ids);
+    const entry = deferral?.entry;
+
     // A deferred package is tolerated only for the exact advisory set recorded
     // above, and only at the severity it was recorded at: a new advisory, a new
     // package or a severity escalation is a finding to act on.
-    const unknown = entry ? ids.filter((id) => !DEFERRED_ADVISORY_IDS.get(name).has(id)) : ids;
+    const unknown = entry
+      ? ids.filter((id) => !DEFERRED_ADVISORY_IDS.get(deferral.name).has(id))
+      : ids;
     const escalated = entry ? SEVERITY_RANK[severity] > SEVERITY_RANK[entry.severity] : false;
 
     if (entry && ids.length > 0 && unknown.length === 0 && !escalated) {
-      accepted.push({ name, severity, ids });
+      accepted.push({ name, severity, ids, via: deferral.name });
     } else {
       blocking.push({
         name,
@@ -168,9 +238,10 @@ function main() {
   if (accepted.length > 0) {
     console.log('\nAccepted advisories (documented deferrals, still visible for review):');
     for (const item of accepted) {
-      const entry = DEFERRED_UPGRADES.get(item.name);
+      const entry = DEFERRED_UPGRADES.get(item.via);
+      const inherited = item.via === item.name ? '' : ` (via ${item.via})`;
       console.log(
-        `  - ${item.name} (${item.severity}) ${item.ids.length} recorded advisory/advisories`
+        `  - ${item.name} (${item.severity})${inherited} ${item.ids.length} recorded advisory/advisories`
       );
       console.log(`      reason     : ${entry.reason}`);
       console.log(`      mitigation : ${entry.mitigation}`);

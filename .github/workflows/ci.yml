@@ -48,8 +48,17 @@ jobs:
             backend/requirements.txt
             backend/requirements-dev.txt
 
-      - name: Install lint tooling
-        run: pip install -r requirements-dev.txt
+      # The *locked* closure is installed on purpose: it contains the runtime
+      # libraries (fastapi, bcrypt, PyJWT, SQLAlchemy, ...) that mypy needs to
+      # resolve the imports in `app/`. Installing only requirements-dev.txt
+      # leaves those modules unresolved, `ignore_missing_imports = true`
+      # silently degrades every decorated/dynamic return to `Any`, and mypy
+      # then reports a wall of `no-any-return` errors that no code change can
+      # fix - a red job that looks like a typing bug but is an install bug.
+      # This is the same closure `backend-test` installs, so lint and tests
+      # type-check against identical versions.
+      - name: Install the locked closure (runtime + lint tooling)
+        run: pip install -r requirements-dev.lock
 
       - name: Ruff lint
         run: ruff check app tests scripts

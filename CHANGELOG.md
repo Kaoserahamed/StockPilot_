@@ -7,8 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as work is merged, then are promoted to a
-versioned section (with a date and a git tag) at release time._
+### Fixed
+
+Four CI jobs were red at `HEAD`, each masking a real defect in the repository
+rather than reporting one. All four now pass, verified locally against the
+locked closures and a scratch Postgres cluster.
+
+- **`backend-lint` could never have passed on any commit.** The job installed
+  only `requirements-dev.txt`, so mypy had no `fastapi`, `bcrypt`, `PyJWT` or
+  `SQLAlchemy` to resolve imports against; with
+  `ignore_missing_imports = true` every decorated return degraded to `Any` and
+  mypy then reported eight `no-any-return` errors that no code change could fix.
+  The job now installs `requirements-dev.lock` — the same locked closure
+  `backend-test` uses — so lint and tests type-check against identical versions
+  (`Success: no issues found in 72 source files`).
+- **The Postgres migration suite never actually ran a migration.**
+  `run_alembic()` passed the whole command line as a single argv entry, so
+  alembic saw one positional named `"upgrade head"` and failed with
+  `invalid choice: 'upgrade head'` before touching the database. The command is
+  now split into argv entries; `upgrade head`, `downgrade base` and the
+  schema/constraint/cascade assertions all pass against real Postgres (6 passed).
+- **The release image has never built.** The root `Dockerfile` installed
+  `-r requirements.lock.txt`, a path that does not exist, so the builder stage
+  failed with `Could not open requirements file`. Corrected to `requirements.lock`
+  — the file the `COPY` on the line above actually stages.
+  `backend/tests/test_quality_gates.py` had asserted the weaker
+  `"requirements.lock" in dockerfile`, which the typo satisfied; it now compares
+  the filenames an image installs against the ones it copies and fails with
+  `Dockerfile installs ['requirements.lock.txt'] but never copies it`.
+- **The frontend dependency audit failed on a finding that has a fix.**
+  `postcss-selector-parser` 6.1.4 is flagged via the Tailwind v3 toolchain; the
+  advisory (CVE-2026-104844, quadratic selector parsing) is patched in 7.1.6 with
+  byte-identical parsing output, so it is now pinned there through `overrides`
+  instead of being deferred. The remaining deferrals (`next`, `postcss`) are
+  genuinely blocked on the Next.js 16 upgrade.
+  `scripts/audit-gate.mjs` also reported four transitive carriers as
+  `unknown advisory` and could never defer them: npm lists those packages'
+  `via` as bare package *names*, so their advisory-id list came out empty and the
+  "at least one recorded advisory" rule rejected them even once the root cause
+  was deferred. Ids are now resolved transitively through the `via` graph and a
+  deferral carries to the packages that inherit it.
 
 ## [0.2.0] - 2026-10-10
 

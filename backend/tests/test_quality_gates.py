@@ -12,6 +12,7 @@ Read-only: ``tomllib`` plus text parsing of committed configuration files.
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -39,6 +40,21 @@ def load_toml(path: Path) -> dict:
 
 def ci_workflow() -> str:
     return CI_WORKFLOW.read_text(encoding="utf-8")
+
+
+def copied_paths(dockerfile_path: Path) -> str:
+    """Return just the ``COPY`` instructions of a Dockerfile.
+
+    Only what an image actually copies in can be installed from, so the
+    lockfile assertions below compare against these lines rather than against
+    the whole file (where a filename may appear in a comment instead).
+    """
+    lines = [
+        line.strip()
+        for line in dockerfile_path.read_text(encoding="utf-8").splitlines()
+        if line.strip().upper().startswith("COPY")
+    ]
+    return "\n".join(lines)
 
 
 def test_backend_pytest_enforces_a_coverage_floor() -> None:
@@ -128,6 +144,16 @@ def test_container_artifacts_exist_and_are_hardened(
 ) -> None:
     dockerfile = dockerfile_path.read_text(encoding="utf-8")
     assert "requirements.lock" in dockerfile, "the image must install from the committed lockfile"
+    # The path referenced by `pip install -r` must be a file that actually
+    # exists, not a typo of one. `requirements.lock.txt` satisfies the substring
+    # check above while installing nothing at all, which fails the build in the
+    # builder stage long before any test could notice.
+    referenced = set(re.findall(r"requirements[\w.\-]*", dockerfile))
+    copied = set(re.findall(r"requirements[\w.\-]*", copied_paths(dockerfile_path)))
+    assert referenced, "the image must name the lockfile it installs"
+    assert referenced <= copied, (
+        f"{dockerfile_path.name} installs {sorted(referenced - copied)} but never copies it"
+    )
     assert "USER " in dockerfile, "the image must not run as root"
     assert "HEALTHCHECK" in dockerfile
     assert build_context_ignore.is_file(), "the build context needs a .dockerignore"

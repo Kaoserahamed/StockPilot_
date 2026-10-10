@@ -46,11 +46,19 @@ def postgres_engine(postgres_url: str) -> Engine:
 
 
 def run_alembic(command: str, postgres_url: str) -> None:
-    """Run alembic CLI command with the given DATABASE_URL."""
+    """Run an alembic CLI command with the given DATABASE_URL.
+
+    ``command`` is the sub-command plus arguments as typed at a shell, e.g.
+    ``"upgrade head"``. It must be split into separate argv entries: passing the
+    whole string as one argument makes alembic see a single positional named
+    ``"upgrade head"`` and fail with ``invalid choice`` before touching the
+    database, which is exactly what a red `backend-integration` job looks like
+    when no migration ever ran.
+    """
     env = os.environ.copy()
     env["DATABASE_URL"] = postgres_url
     result = subprocess.run(
-        ["alembic", command],
+        ["alembic", *command.split()],
         capture_output=True,
         text=True,
         env=env,
@@ -132,8 +140,14 @@ def test_postgres_json_columns_work(postgres_engine: Engine, postgres_url: str) 
         result = session.execute(
             text(
                 """
-                INSERT INTO businesses (name, email, phone, currency, created_at)
-                VALUES ('Test Business', 'test@example.com', '+1234567890', 'USD', NOW())
+                INSERT INTO businesses (
+                    name, email, phone, currency, tax_rate, invoice_format,
+                    min_stock_default, created_at
+                )
+                VALUES (
+                    'Test Business', 'test@example.com', '+1234567890', 'USD',
+                    0.0, 'INV-{yyyy}-{seq:04d}', 5, NOW()
+                )
                 RETURNING id
                 """
             )
@@ -170,33 +184,59 @@ def test_postgres_constraints_enforced(postgres_engine: Engine, postgres_url: st
             session.commit()
         session.rollback()
 
-        # Test 2: UNIQUE constraint on business email
-        # First insert should succeed
-        session.execute(
+        # A parent business is needed for the category rows below.
+        result = session.execute(
             text(
                 """
-                INSERT INTO businesses (name, email, phone, currency, created_at)
-                VALUES ('Biz1', 'unique@test.com', '+1111111111', 'USD', NOW())
+                INSERT INTO businesses (
+                    name, email, phone, currency, tax_rate, invoice_format,
+                    min_stock_default, created_at
+                )
+                VALUES (
+                    'Constraint Test', 'constraints@test.com', '+4444444444', 'USD',
+                    0.0, 'INV-{yyyy}-{seq:04d}', 5, NOW()
+                )
+                RETURNING id
                 """
             )
         )
+        business_id = result.scalar()
         session.commit()
 
-        # Duplicate email should fail
-        with pytest.raises(IntegrityError):  # duplicate key
+        # Test 2: UNIQUE constraint
+        # `businesses` carries no UNIQUE constraint on its own columns - email is
+        # nullable and deliberately not unique, because one owner can register
+        # several businesses from the same address. The real composite unique
+        # index in the schema is (business_id, name) on `categories`, so that is
+        # what this asserts: the same category name twice inside one business is
+        # rejected. Asserting uniqueness on businesses.email instead would never
+        # have failed on SQLite, but does fail against real Postgres.
+        session.execute(
+            text(
+                """
+                INSERT INTO categories (name, business_id, is_active)
+                VALUES ('Stationery', :business_id, true)
+                """
+            ),
+            {"business_id": business_id},
+        )
+        session.commit()
+
+        with pytest.raises(IntegrityError):  # duplicate (business_id, name)
             session.execute(
                 text(
                     """
-                    INSERT INTO businesses (name, email, phone, currency, created_at)
-                    VALUES ('Biz2', 'unique@test.com', '+2222222222', 'USD', NOW())
+                    INSERT INTO categories (name, business_id, is_active)
+                    VALUES ('Stationery', :business_id, true)
                     """
-                )
+                ),
+                {"business_id": business_id},
             )
             session.commit()
         session.rollback()
 
         # Clean up
-        session.execute(text("DELETE FROM businesses WHERE email = 'unique@test.com'"))
+        session.execute(text("DELETE FROM businesses WHERE email = 'constraints@test.com'"))
         session.commit()
 
 
@@ -214,8 +254,14 @@ def test_postgres_cascades_work(postgres_engine: Engine, postgres_url: str) -> N
         result = session.execute(
             text(
                 """
-                INSERT INTO businesses (name, email, phone, currency, created_at)
-                VALUES ('Cascade Test', 'cascade@test.com', '+9999999999', 'USD', NOW())
+                INSERT INTO businesses (
+                    name, email, phone, currency, tax_rate, invoice_format,
+                    min_stock_default, created_at
+                )
+                VALUES (
+                    'Cascade Test', 'cascade@test.com', '+9999999999', 'USD',
+                    0.0, 'INV-{yyyy}-{seq:04d}', 5, NOW()
+                )
                 RETURNING id
                 """
             )
