@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `backend/tests/test_pdf_service.py` — 22 unit tests for the ReportLab invoice
+  renderer, taking `app/services/pdf_service.py` from 78% to **100%**. The
+  module's only branch, `if y < 30 * mm`, is the pagination path a customer hits
+  on the first invoice with more than ~40 line items, and it was untested: rows
+  were drawn straight onto the next page with no page furniture redrawn.
+  Pagination is asserted through a recording canvas double (which avoids adding a
+  PDF parser to the runtime dependency set), and a meta-test renders the same
+  payload through the *real* ReportLab canvas and compares the page counts, so
+  the double cannot quietly invent a layout contract of its own.
+- Extended `backend/tests/test_ai_service.py` and `test_ai_rule_answer.py` to take
+  `app/services/ai_service.py` from 64% to **100%**, covering the parsing of the
+  local rule-based answer path and the malformed/absent-payload branches.
+
 ### Fixed
 
 Four CI jobs were red at `HEAD`, each masking a real defect in the repository
