@@ -341,3 +341,114 @@ def test_reset_clears_state(tracker: ErrorTracker) -> None:
 
     tracker.reset(keep_sinks=False)
     assert len(tracker._sinks) == 0  # Sinks cleared
+
+
+# --------------------------------------------------------------------------- #
+# Sentry forwarding (the tracker must forward, not just initialise)
+# --------------------------------------------------------------------------- #
+def _sentry_tracker(dsn: str = "https://public@sentry.io/123456") -> ErrorTracker:
+    """Build an enabled tracker whose Sentry SDK is a MagicMock."""
+    import sys
+
+    mock_sentry = MagicMock()
+    sys.modules["sentry_sdk"] = mock_sentry
+    tracker = ErrorTracker(
+        environment="production",
+        release="v1.0.0",
+        enabled=True,
+        sentry_dsn=dsn,
+    )
+    assert tracker._sentry_installed is True
+    assert tracker._sentry is mock_sentry
+    return tracker
+
+
+def test_capture_forwards_to_sentry_exactly_once() -> None:
+    """Every captured exception is forwarded to Sentry exactly once."""
+    import sys
+
+    try:
+        tracker = _sentry_tracker()
+        exc = RuntimeError("stock check failed")
+        tracker.capture(exc)
+
+        tracker._sentry.capture_exception.assert_called_once_with(exc)
+    finally:
+        sys.modules.pop("sentry_sdk", None)
+
+
+def test_repeated_capture_forwards_each_occurrence() -> None:
+    """The log sink de-duplicates fingerprints, but Sentry sees every report."""
+    import sys
+
+    try:
+        tracker = _sentry_tracker()
+        tracker.capture(ValueError("duplicate invoice"))
+        tracker.capture(ValueError("duplicate invoice"))
+
+        assert tracker._sentry.capture_exception.call_count == 2
+    finally:
+        sys.modules.pop("sentry_sdk", None)
+
+
+def test_sentry_forwarding_carries_route_context() -> None:
+    """The Sentry scope is tagged with the request/actor correlation."""
+    import sys
+
+    try:
+        tracker = _sentry_tracker()
+        with tracker.route(method="POST", path="/api/v1/sales", request_id="req-9"):
+            tracker.capture(RuntimeError("payment declined"))
+
+        scope = tracker._sentry.push_scope.return_value.__enter__.return_value
+        scope.set_tag.assert_any_call("route", "POST /api/v1/sales")
+        scope.set_tag.assert_any_call("request_id", "req-9")
+        scope.set_tag.assert_any_call("fingerprint", tracker.recent[-1].fingerprint)
+    finally:
+        sys.modules.pop("sentry_sdk", None)
+
+
+def test_sentry_forwarding_failure_does_not_break_capture() -> None:
+    """A failing Sentry SDK never prevents the report reaching sinks."""
+    import sys
+
+    try:
+        tracker = _sentry_tracker()
+        tracker._sentry.capture_exception.side_effect = Exception("network down")
+        reports: list[ErrorReport] = []
+        tracker.add_sink(reports.append)
+
+        report = tracker.capture(RuntimeError("payment declined"))
+
+        assert report.exception_type == "RuntimeError"
+        assert len(reports) == 1  # local sinks still fire
+        tracker._sentry.capture_exception.assert_called_once()
+        tracker.clear_sinks()
+    finally:
+        sys.modules.pop("sentry_sdk", None)
+
+
+def test_capture_skips_sentry_when_dsn_unset(
+    tracker: ErrorTracker, captured_reports: list[ErrorReport]
+) -> None:
+    """Without a DSN the tracker stays log-only and imports no SDK."""
+    tracker.capture(ValueError("bad payload"))
+
+    assert len(captured_reports) == 1
+    assert tracker._sentry_installed is False
+    assert tracker._sentry is None
+
+
+def test_disabled_tracker_does_not_forward_to_sentry() -> None:
+    """A disabled tracker never calls the Sentry SDK."""
+    import sys
+
+    try:
+        tracker = _sentry_tracker()
+        tracker.enabled = False
+
+        tracker.capture(ValueError("bad payload"))
+
+        tracker._sentry.capture_exception.assert_not_called()
+    finally:
+        sys.modules.pop("sentry_sdk", None)

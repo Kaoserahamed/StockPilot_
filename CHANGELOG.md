@@ -27,6 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   converters that use fixed ~4 queries regardless of list size.
 - `backend/requirements.lock` and `backend/requirements-dev.lock` regenerated
   with latest transitive dependencies for reproducible builds.
+- Root `.env.example` now documents `NODE_ENV`, `TEST_DEFAULT_PASSWORD` and
+  `SENTRY_DSN`, so every variable the codebase reads has an example entry.
+
+### Fixed
+
+- The error tracker initialised `sentry-sdk` but never forwarded captured
+  exceptions to it. `ErrorTracker.capture()` now calls
+  `_forward_to_sentry()` exactly once per captured exception (with request id,
+  route, tenant, actor and fingerprint tags on the Sentry scope), degrades to
+  log-only when the SDK is absent or fails, and is covered by
+  `backend/tests/test_error_tracking.py`.
 
 ### Security
 

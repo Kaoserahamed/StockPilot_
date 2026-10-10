@@ -109,6 +109,7 @@ class ErrorTracker:
         self._sinks: list[Sink] = []
         self.last_route: dict[str, object | None] = {}
         self._sentry_installed = False
+        self._sentry: Any | None = None
         if enabled and sentry_dsn:
             self._sentry_installed = self._install_sentry(sentry_dsn)
 
@@ -138,7 +139,34 @@ class ErrorTracker:
         except Exception as exc:  # pragma: no cover - defensive: bad DSN
             logger.warning("Sentry initialisation failed: %s", exc)
             return False
+        # Keep the imported module so capture() can forward reports without
+        # re-importing (and so tests can assert the forwarding call count).
+        self._sentry = sentry_sdk
         return True
+
+    def _forward_to_sentry(self, exc: BaseException, report: ErrorReport) -> None:
+        """Forward one captured exception to Sentry with its correlation tags.
+
+        Called at most once per ``capture()``, and only when ``_install_sentry``
+        succeeded. A failing SDK must never break the request that raised, so
+        every interaction is guarded.
+        """
+        if self._sentry is None:  # pragma: no cover - defensive: guarded by the caller
+            return
+        try:
+            with self._sentry.push_scope() as scope:
+                if report.request_id is not None:
+                    scope.set_tag("request_id", report.request_id)
+                if report.path is not None:
+                    scope.set_tag("route", f"{report.method or '-'} {report.path}")
+                if report.business_id is not None:
+                    scope.set_tag("business_id", str(report.business_id))
+                if report.user_id is not None:
+                    scope.set_tag("user_id", str(report.user_id))
+                scope.set_tag("fingerprint", report.fingerprint)
+                self._sentry.capture_exception(exc)
+        except Exception as sentry_exc:  # SDK failures are non-fatal (tested)
+            logger.warning("Sentry forwarding failed: %s", sentry_exc)
 
     # ----------------------------------------------------------------- context
     @contextmanager
@@ -190,6 +218,11 @@ class ErrorTracker:
 
         if not self.enabled:
             return report
+
+        # Forward to Sentry exactly once per captured exception (the log sink
+        # below already de-duplicates repeated fingerprints).
+        if self._sentry_installed:
+            self._forward_to_sentry(exc, report)
 
         if self.counts[report.fingerprint] <= LOG_AFTER_OCCURRENCES:
             logger.error(
