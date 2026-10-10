@@ -310,3 +310,57 @@ and exited 0 in this working tree.
 | 6 | CI4 branch protection doc | carried | |
 | 7 | H1 commits | partial | working-tree changes not yet committed |
 | 7 | V verify | **PASS** | `backend: ruff-lint=0`, `ruff-format=0`, `mypy=0`, `scan=0`, `pip-audit=0`, `pytest=0` (375 passed, 90.73% cov); `frontend: coverage=0` (79 tests), `lint=0`, `typecheck=0`, `format=0`, `audit=0`, `build=0` |
+
+---
+
+## 7. Second report (fullstack **68**, payout **$210**)
+
+**Audited:** 2026-10-10 · **Commit:** `21036d0` (`main`) · report scored by
+`claude-sonnet-5`, six prioritised recommendations.
+
+That report's central claim - *"Builds & tests at HEAD: estimated"* - was wrong,
+and in a way that mattered more than any score it listed. `main` was red in four
+of ten jobs. Each of those jobs was failing on a real defect rather than
+reporting one, so the red was hiding the bug instead of showing it.
+
+### 7.1 The four jobs that could not have passed on any commit
+
+| Job | Root cause | Why CI never caught it |
+|---|---|---|
+| `backend-lint` | job installed only `requirements-dev.txt` | mypy had no `fastapi`/`bcrypt`/`PyJWT`/`SQLAlchemy` to resolve against; `ignore_missing_imports = true` degraded every decorated return to `Any`, producing 8 `no-any-return` errors that **no code change could fix** |
+| `backend-integration` | `run_alembic(["alembic", "upgrade head"])` passed the command as a single argv token -> `invalid choice: 'upgrade head'` | the suite skipped whenever `DATABASE_URL` was absent, so the migration path was never actually exercised - in any environment |
+| `containers` | root `Dockerfile:32` installed `-r requirements.lock.txt` | the file is `requirements.lock`; the release image never built |
+| `frontend-audit` | new advisory `GHSA-VFJ7-8CJW-P6XM` (`braces <= 3.0.3`) via `tailwindcss -> micromatch -> chokidar / fast-glob` | the gate's `findDeferral` logic could not express a deferral for a transitive package |
+
+**All fixed and verified.** `backend-lint` now installs `requirements-dev.lock`
+(the same closure `backend-test` uses, so lint and tests type-check against
+identical versions) and reports `Success: no issues found in 72 source files`.
+The alembic argv bug is fixed and the migration suite now genuinely runs -
+verified against a throwaway `initdb` cluster on port 55432, where all six
+integration tests pass. The Dockerfile typo is fixed and a contract test in
+`test_quality_gates.py` now asserts the exact `-r requirements.lock` spelling, so
+the specific typo cannot return silently.
+
+The audit gate needed a design fix, not a new deferral line: npm reports four
+packages in that chain with `via: ["<package>"]` and **no advisory of their
+own**, so `findDeferral` returned `unknown advisory` for each and they could
+never be accepted even once their root cause was. `resolveAdvisoryIds` now walks
+the `via` chain down to the advisories that actually caused a finding, so a
+deferral on `braces` carries to everything inheriting from it. `braces` itself is
+dev-only (`npm` marks it `dev: true`, under the `tailwindcss` devDependency), has
+no patched 3.x release, and is only resolvable by the Tailwind v4 major - so it is
+deferred with that reasoning recorded inline rather than papered over.
+
+**Verified green:** run `38046972528` on `9df32f1` - all 10 required jobs
+`success`, `release` correctly skipped.
+
+### 7.2 Recommendation-by-recommendation
+
+| # | Recommendation | Status | Evidence |
+|---|---|---|---|
+| 01 | "Keep developing over time, in real increments" | **Not fixable in-repo** | 109 commits / 23 days / 1 author. Only time and additional commits change this; two well-scoped commits landed here do not move a 38 |
+| 02 | "Grow multi-session history with tests alongside features" | **Practised** | `9df32f1` commits the new `test_pdf_service.py`, its `CHANGELOG.md` entry and the `test_ai_service.py` extensions **in one commit** - the cadence the report asks for |
+| 03 | "Reconcile CI enforcement with `ci.yml` contents" | **DONE** | enforcement is now unambiguous: 10 required status checks configured on `main` (verified via `GET /branches/main/protection`), all 10 passing on the pushed commit. `frontend / lint + types + build` already ran `npm ci`, `lint`, `typecheck` and `test -- --run`, so the "add a frontend-test job" half was already satisfied |
+| 04 | "Wire a real error-tracking and structured-logging backend" | **Stale (detector artifact)** | `app/core/error_tracking.py` initialises `sentry_sdk.init` when `SENTRY_DSN` is set and falls back to a no-op tracker otherwise; `app/core/logging_config.py` emits JSON via `python-json-logger==4.2.0` gated on `JSON_LOGS`; `backend/tests/test_error_tracking_sentry.py` asserts `capture()` forwards to the Sentry client. The report's `logging_framework`/`error_tracking: null` reads the stats table, not the code |
+| 05 | "Fix dependency manifest parsing gap" | **Stale (detector artifact)** | `direct_runtime_deps`/`direct_dev_deps: 0` is a parsing gap. `backend/requirements.txt` pins 20 runtime deps, `requirements-dev.txt` 9 dev deps, `frontend/package.json` declares both sections, and `test_dependency_manifests.py` already asserts the manifests are complete and consistent. `uv.lock` and `package-lock.json` are both committed |
+| 06 | "Increase test breadth / integration coverage" | **DONE - this was real** | the flagged modules were genuinely under-covered while the *aggregate* cleared the floor, which is exactly why the gap was invisible in the CI summary |
