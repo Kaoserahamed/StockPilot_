@@ -106,6 +106,7 @@ def test_ci_runs_every_suite_on_pull_requests_and_main() -> None:
         "backend-lock-drift:",
         "backend-reproducible-install:",
         "backend-secret-scan:",
+        "fresh-clone-smoke:",
     ):
         assert job in workflow, f"missing CI job: {job}"
 
@@ -170,3 +171,50 @@ def test_secret_scanning_is_wired_into_ci_and_the_suite() -> None:
     assert SECRET_SCANNER.is_file()
     assert SECRET_SCANNER_TESTS.is_file()
     assert "scan_secrets.py" in ci_workflow()
+
+
+def _job_block(workflow: str, job_name: str) -> str:
+    """Return the indented block of a single CI job by name.
+
+    Jobs are keys at two-space indentation, so the block runs from the
+    ``<name>:`` line up to (but not including) the next two-space job key. This
+    lets a test assert on one job in isolation instead of matching substrings
+    that also occur in the per-stack jobs above it.
+    """
+
+    lines = workflow.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip() == f"{job_name}:")
+    block = [lines[start]]
+    for line in lines[start + 1 :]:
+        if re.match(r"^  \S", line):  # the next top-level job key
+            break
+        block.append(line)
+    return "\n".join(block)
+
+
+def _without_comments(block: str) -> str:
+    """Drop full-line comments so prose cannot satisfy or break a gate check."""
+
+    return "\n".join(line for line in block.splitlines() if not line.strip().startswith("#"))
+
+
+def test_fresh_clone_smoke_runs_the_readme_quickstart_without_cache() -> None:
+    """The fresh-clone job is the automated proof of the README quickstart.
+
+    It must run the documented ``make install`` then ``make verify`` entry
+    points, and it must not reuse a pip/npm cache - a cache would silently skip
+    the install path the job exists to prove, turning the "fresh clone" contract
+    into a no-op. Losing either property should fail this test so the guarantee
+    cannot quietly erode.
+    """
+
+    block = _job_block(ci_workflow(), "fresh-clone-smoke")
+    code = _without_comments(block)
+    assert "make install" in code, "the fresh-clone job must run the README install step"
+    assert "make verify" in code, "the fresh-clone job must run the README verify step"
+    assert "cache:" not in code, (
+        "the fresh-clone job must not reuse a cache; a cache defeats the quickstart proof"
+    )
+    # Both toolchains must be provisioned on the clean runner.
+    assert "actions/setup-python@" in code
+    assert "actions/setup-node@" in code

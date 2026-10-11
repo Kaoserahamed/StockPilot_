@@ -39,8 +39,11 @@ setup the suite uses locally.
 | `frontend-audit` | `npm run audit` (the committed deferral gate) | a high/critical advisory that is not a recorded deferral |
 | `backend-reproducible-install` | creates a venv, installs **`requirements.lock`** then **`requirements-dev.lock`**, imports `app.main` and runs `pytest` | a lockfile no longer installs or resolves differently |
 | `backend-secret-scan` | `python backend/scripts/scan_secrets.py` | a committed credential literal |
+| `fresh-clone-smoke` | on a clean runner **with no pip/npm cache**, runs `make install` then `make verify` — the README quickstart verbatim | the documented quickstart, a lockfile or a `make` target breaks |
 | `docker` | builds `./Dockerfile`, `./backend/Dockerfile`, `./frontend/Dockerfile` | any image fails to build |
 | `release` | tag-only, `needs: [backend-lint, backend-test, frontend-check, docker]` | see §4 |
+
+`fresh-clone-smoke` is the automated proof of the [fresh-clone quickstart](../../README.md#quickstart-fresh-clone-no-external-services-needed-to-run-tests). The per-stack jobs above run the same commands, but each provisions its own cache and only exercises one stack; this job does neither, so a broken install path — a stale lockfile, a renamed `make` target, a command that only works in an activated virtualenv — fails here instead of being discovered by the next new contributor. It re-runs the other jobs' commands on purpose: it validates the *documented entry point*, not just the individual gates. Configure it as a **required status check** on `main` so a red quickstart blocks merges.
 
 ## 3. Gates and floors
 

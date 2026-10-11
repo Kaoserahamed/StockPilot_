@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`fresh-clone-smoke` CI job** — the automated proof of the README quickstart.
+  On a clean runner **with no pip/npm cache** it runs `make install` then
+  `make verify` exactly as documented. The per-stack jobs each provision their
+  own cache and only exercise one stack, so the documented entry point had no
+  automated coverage: a stale lockfile, a renamed `make` target, or an install
+  step that only worked in an activated virtualenv could break the quickstart
+  without turning any existing job red. `backend/tests/test_quality_gates.py`
+  now asserts the job exists and stays cache-free and quickstart-shaped, so the
+  guarantee cannot quietly erode.
+
 ### Fixed
 
 - **`make` backend targets only worked in an activated virtualenv.** Every

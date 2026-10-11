@@ -274,6 +274,56 @@ jobs:
         run: npm run audit
 
   # ---------------------------------------------------------------------------
+  # Fresh clone: prove the README quickstart works verbatim, with no cache reuse
+  # ---------------------------------------------------------------------------
+  # The per-stack jobs above run the same commands, but each one provisions its
+  # own cache and only exercises one stack. This job deliberately does neither:
+  # it is the automated proof of the README's "fresh clone" quickstart - a clean
+  # runner, no pip/npm cache, `make install` then `make verify` exactly as
+  # documented. If a documented install step, a lockfile or a `make` target
+  # breaks, this job is what turns red, so a broken quickstart blocks the merge
+  # instead of being discovered by the next new contributor.
+  #
+  # `make verify` == `lint typecheck test build audit secrets` for both stacks,
+  # which is intentionally heavy (it re-runs the other jobs' commands); that
+  # duplication is the point - it validates the *documented entry point*, not
+  # just the individual gates.
+  fresh-clone-smoke:
+    name: fresh clone / install + verify
+    runs-on: ubuntu-latest
+    env:
+      # The same hermetic, secret-free environment the backend suite documents.
+      # conftest.py also sets these via os.environ.setdefault, so the backend
+      # half stays green even if this block is ever removed.
+      DATABASE_URL: sqlite://
+      SECRET_KEY: ci-only-secret-not-used-in-production
+      ENVIRONMENT: test
+      JSON_LOGS: "false"
+      LOG_LEVEL: WARNING
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # No `cache:` on purpose - a cached pip/npm directory would defeat the
+      # whole "fresh clone" contract by skipping the install path under test.
+      - name: Set up Python (no cache)
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js (no cache)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install both stacks (README quickstart)
+        run: make install
+
+      - name: Verify both stacks (README quickstart)
+        run: make verify
+
+  # ---------------------------------------------------------------------------
   # Backend: prove a fresh clone installs from the committed lockfile
   # ---------------------------------------------------------------------------
   backend-reproducible-install:
