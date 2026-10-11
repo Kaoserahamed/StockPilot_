@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Removed the committed password-shaped literal from the auth test fixture.**
+  `frontend/tests/helpers.ts` assigned `MOCK_AUTH_PASSWORD = 'test-password-for-mocked-auth'`
+  — a quoted literal under a `PASSWORD` name, which third-party secret scanners
+  flag even though the repository's own scanner (`backend/scripts/scan_secrets.py`)
+  ignores it by convention. The fixture now reads
+  `process.env.TEST_DEFAULT_PASSWORD` (the same variable documented in
+  `backend/.env.example`) with a deterministic, non-secret fallback and a
+  `pragma: allowlist secret` marker, and `frontend/vitest.config.ts` fixes that
+  env var so the suite stays hermetic. The value never leaves the mocked
+  auth/axios layer. Re-ran `scan_secrets.py` (exit 0, zero findings) and the
+  affected specs (`auth.test.tsx`, `services.test.ts` — 25 tests green).
+
 ### Added
 
 - **`fresh-clone-smoke` CI job** — the automated proof of the README quickstart.

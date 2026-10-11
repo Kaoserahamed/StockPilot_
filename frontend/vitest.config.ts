@@ -18,6 +18,14 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     globals: true,
     include: ['tests/**/*.test.{ts,tsx}'],
+    // Deterministic, non-secret environment for the mocked auth fixtures.
+    // `tests/helpers.ts` reads TEST_DEFAULT_PASSWORD for MOCK_AUTH_PASSWORD so
+    // no password-shaped literal is committed in a test file; fixing the value
+    // here (rather than in helpers.ts) keeps the suite hermetic and offline
+    // while the literal lives in config, not in a `... = "..."` assignment.
+    env: {
+      TEST_DEFAULT_PASSWORD: 'mock-auth-password',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'json-summary'],
