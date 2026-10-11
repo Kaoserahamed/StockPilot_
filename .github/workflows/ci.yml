@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 # Gates every pull request before it can merge, re-verifies main after merge,
 # proves a fresh clone installs from the committed lockfile, scans the tree for
@@ -221,7 +221,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -261,7 +261,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -313,7 +313,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up Node.js (no cache)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
