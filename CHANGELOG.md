@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as work is merged, then are promoted to a
-versioned section (with a date and a git tag) at release time._
+### Fixed
+
+- **`make` backend targets only worked in an activated virtualenv.** Every
+  target invoked tooling as bare `python -m ruff` / `python -m pytest` /
+  `python -m mypy` (and `uvicorn`, `alembic`, `uv` as bare commands), so
+  `make install && make verify` — the exact fresh-clone path the README
+  promises — failed on a clean machine or in a non-activated CI shell with
+  "No module named ruff/pytest/...". `VENV_PY` was already defined but was
+  hardcoded to the Windows interpreter and never used, and `install-backend`
+  bootstrapped `.venv/bin/python` unconditionally (broken on Windows). The
+  portable interpreter is now detected per-OS and every backend target runs
+  through it, so `make verify` is reproducible outside CI and on Windows.
+  Verified end to end against a freshly created `backend/.venv`: lint,
+  format check, mypy, `pytest --cov=app --cov-fail-under=90` (91.23%,
+  468 passed), the secret scan and `pip-audit` all exit 0.
 
 ## [0.3.0] - 2026-10-10
 

@@ -9,11 +9,19 @@
 BACKEND := backend
 FRONTEND := frontend
 
-# Portable virtualenv python: .venv/Scripts on Windows, .venv/bin elsewhere.
-VENV_PY := $(BACKEND)/.venv/Scripts/python.exe
+# Portable virtualenv python, detected once for the whole Makefile:
+#   Windows -> backend/.venv/Scripts/python.exe
+#   POSIX   -> backend/.venv/bin/python
+#
+# Every backend target below invokes tooling through $(VENV_PY) so the targets
+# work in a *non-activated* shell (CI, devcontainer, fresh clone). Calling bare
+# `python -m ruff/pytest/mypy` only worked when the virtualenv happened to be
+# activated, which is exactly the fragile fresh-clone path the README promises.
 ifeq ($(OS),Windows_NT)
+  VENV_PY := $(BACKEND)/.venv/Scripts/python.exe
   RM_RF := powershell -NoProfile -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
 else
+  VENV_PY := $(BACKEND)/.venv/bin/python
   RM_RF := rm -rf
 endif
 
@@ -44,8 +52,8 @@ install: install-backend install-frontend ## Install both stacks
 .PHONY: install-backend
 install-backend: ## Create a virtualenv and install backend deps
 	cd $(BACKEND) && python -m venv .venv && \
-		.venv/bin/python -m pip install --upgrade pip && \
-		.venv/bin/python -m pip install -r requirements.txt -r requirements-dev.txt
+		$(VENV_PY) -m pip install --upgrade pip && \
+		$(VENV_PY) -m pip install -r requirements.txt -r requirements-dev.txt
 
 .PHONY: install-frontend
 install-frontend: ## Install frontend deps from the lockfile
@@ -57,7 +65,7 @@ lint: lint-backend lint-frontend ## Lint both stacks
 
 .PHONY: lint-backend
 lint-backend: ## Ruff lint + format check (backend)
-	cd $(BACKEND) && python -m ruff check app tests scripts && python -m ruff format --check app tests scripts
+	cd $(BACKEND) && $(VENV_PY) -m ruff check app tests scripts && $(VENV_PY) -m ruff format --check app tests scripts
 
 .PHONY: lint-frontend
 lint-frontend: ## ESLint (frontend)
@@ -65,14 +73,14 @@ lint-frontend: ## ESLint (frontend)
 
 .PHONY: format
 format: ## Auto-fix formatting and import order (backend)
-	cd $(BACKEND) && python -m ruff check --fix app tests && python -m ruff format app tests
+	cd $(BACKEND) && $(VENV_PY) -m ruff check --fix app tests && $(VENV_PY) -m ruff format app tests
 
 .PHONY: typecheck
 typecheck: typecheck-backend typecheck-frontend ## Type-check both stacks
 
 .PHONY: typecheck-backend
 typecheck-backend: ## mypy (backend)
-	cd $(BACKEND) && python -m mypy app
+	cd $(BACKEND) && $(VENV_PY) -m mypy app
 
 .PHONY: typecheck-frontend
 typecheck-frontend: ## tsc --noEmit (frontend)
@@ -83,28 +91,28 @@ test: test-backend test-frontend ## Run both test suites
 
 .PHONY: test-backend
 test-backend: ## pytest (backend, in-memory SQLite)
-	cd $(BACKEND) && python -m pytest
+	cd $(BACKEND) && $(VENV_PY) -m pytest
 
 .PHONY: test-frontend
 test-frontend: ## vitest run (frontend)
 	cd $(FRONTEND) && npm test -- --run
 .PHONY: test-cov
 test-cov: ## pytest with a terminal coverage report
-	cd $(BACKEND) && python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=90
+	cd $(BACKEND) && $(VENV_PY) -m pytest --cov=app --cov-report=term-missing --cov-fail-under=90
 
 .PHONY: audit
 audit: ## Dependency vulnerability audit for both stacks
-	cd $(BACKEND) && python -m pip_audit -r requirements.lock
+	cd $(BACKEND) && $(VENV_PY) -m pip_audit -r requirements.lock
 	cd $(FRONTEND) && npm run audit
 
 .PHONY: secrets
 secrets: ## Scan for hardcoded secrets
-	cd $(BACKEND) && python scripts/scan_secrets.py
+	cd $(BACKEND) && $(VENV_PY) scripts/scan_secrets.py
 
 .PHONY: lock
 lock: ## Regenerate backend lockfiles (pip closure + uv.lock) from the manifests
-	cd $(BACKEND) && python scripts/generate_lockfile.py && python scripts/generate_lockfile.py --dev
-	cd $(BACKEND) && uv lock
+	cd $(BACKEND) && $(VENV_PY) scripts/generate_lockfile.py && $(VENV_PY) scripts/generate_lockfile.py --dev
+	cd $(BACKEND) && $(VENV_PY) -m uv lock
 
 .PHONY: verify
 verify: lint typecheck test build audit secrets ## Everything CI enforces, in one command
@@ -120,7 +128,7 @@ build-frontend: ## Next.js production build
 # --------------------------------------------------------------------- run ----
 .PHONY: run-backend
 run-backend: ## Start the API with autoreload
-	cd $(BACKEND) && uvicorn app.main:app --reload --port 8000
+	cd $(BACKEND) && $(VENV_PY) -m uvicorn app.main:app --reload --port 8000
 
 .PHONY: run-frontend
 run-frontend: ## Start the Next.js dev server
@@ -132,7 +140,7 @@ db-up: ## Start the development PostgreSQL container
 
 .PHONY: migrate
 migrate: ## Apply database migrations
-	cd $(BACKEND) && alembic upgrade head
+	cd $(BACKEND) && $(VENV_PY) -m alembic upgrade head
 
 # ------------------------------------------------------------------- housekeeping ----
 .PHONY: clean
