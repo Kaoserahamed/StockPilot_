@@ -42,6 +42,15 @@ parties can reach (see [`../security/threat-model.md`](../security/threat-model.
 3. **Forward** — if `SENTRY_DSN` is set and `sentry-sdk` is installed, reports
    fan out to Sentry; otherwise they are emitted as structured log lines.
 
+**Concrete stack.** The error-tracking backend is **`sentry-sdk` (pinned at
+`sentry-sdk==2.22.0` in `backend/requirements.txt`)**, wired through the
+`SENTRY_DSN` environment variable (see `backend/.env.example`). `core/error_tracking.py`
+stays dependency-free — it owns correlation and fingerprinting itself and treats
+Sentry as an optional *sink*, so the tracker works with or without a DSN and the
+app still boots when Sentry is not configured. `app/core/error_tracking.py` is
+the module; `SENTRY_DSN` is the single knob that turns the external reporter on.
+The behaviour is covered by `backend/tests/test_error_tracking.py`.
+
 `/health/detailed` returns this summary:
 
 | Field | Meaning |
@@ -67,6 +76,16 @@ logger on startup:
 | `JSON_LOGS=false` | human-readable text (local dev) |
 | `LOG_LEVEL` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` |
 | `RELEASE_VERSION` | stamped on every request log line and error report |
+
+**Concrete stack.** Logging is built on the standard library `logging` module
+with **`python-json-logger` (pinned at `python-json-logger==4.2.0` in
+`backend/requirements.txt`)** as the JSON formatter. When `JSON_LOGS=true`,
+`core/logging_config` installs `pythonjsonlogger.jsonlogger.JsonFormatter` so
+each record is emitted as a single JSON object; when `false`, it falls back to a
+plain-text formatter. Every line carries the `app` correlation field added by
+`_ExtraFilter`, so a JSON sink can group by service. `backend/tests/test_logging_config.py`
+asserts that `get_logger(__name__)` emits JSON when `JSON_LOGS=true` — the
+executable proof of the documented behaviour.
 
 Every request logs one line with `method`, `path`, `status`, `ms`, `request_id`
 and `release`, so a JSON log sink can build rate/latency panels without an agent.

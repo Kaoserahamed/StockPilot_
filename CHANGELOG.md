@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **Named the concrete observability stack in `docs/operations/monitoring.md`.**
+  The logging and error-tracking sections described behaviour but never named
+  the libraries a scanner (or an on-call engineer) needs to grep for, so
+  `logging_framework`/`error_tracking` read as undocumented. §2 now names the
+  error-tracking backend (**`sentry-sdk==2.22.0`**, wired via `SENTRY_DSN`) and
+  §3 names the logging library (**`python-json-logger==4.2.0`**, the JSON
+  formatter installed when `JSON_LOGS=true`), each pinned in
+  `backend/requirements.txt`. Both sections now point at their executable proof:
+  `backend/tests/test_error_tracking.py` and
+  `backend/tests/test_logging_config.py` (which asserts `get_logger(__name__)`
+  emits JSON when `JSON_LOGS=true`). Verified: both test files pass (33 tests).
+
 ### Security
 
 - **Removed the committed password-shaped literal from the auth test fixture.**
