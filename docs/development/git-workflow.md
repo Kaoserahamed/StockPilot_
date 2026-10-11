@@ -69,8 +69,33 @@ pre-commit install
 
 The template (`.github/PULL_REQUEST_TEMPLATE.md`) asks for what/why, the
 milestone or `FR-` reference, the change type, the pasted verification output
-and the checklist. `CODEOWNERS` requests a review from the maintainer for every
-path, including `/docs/`.
+and the checklist. `CODEOWNERS` (`.github/CODEOWNERS`) requests a review from
+the maintainer for every path, including `/docs/`.
+
+### Reviewer path
+
+The goal is that no change — including a docs-only one — merges without a
+second set of eyes, however that review is staffed:
+
+- **A human co-maintainer.** `CODEOWNERS` routes every path to the maintainer;
+  a second contributor with write access on `main` is auto-requested the moment
+  they are listed there. They should commit under their own identity so the
+  history reflects more than one author (the ask is *genuine* back-and-forth,
+  not rubber-stamping).
+- **A bot-assisted review, where a human is not available.** Automated review
+  (Dependabot, the `fresh-clone-smoke` and per-stack CI jobs, the secret scan,
+  and optional static-analysis bots) is a floor, not a substitute. When a solo
+  contributor has to self-approve to keep a change moving, record that decision
+  in the PR (a one-line "self-review: verified X, Y, Z against the checklist
+  below") so the record shows a review happened rather than a rubber stamp.
+- **Self-review rules.** Only the author should self-review, only when no other
+  reviewer is available, and only against the full checklist below — ideally on
+  a fresh branch after a short gap, so the diff is read with fresh eyes.
+
+In every case the CI checks are the gate that must be green before merge:
+`make verify`, the secret scan, and the required status checks (see
+[`../deployment/ci-cd.md`](../deployment/ci-cd.md)). A reviewer shortcut is a
+process allowance; it never overrides a red check.
 
 Before requesting review:
 

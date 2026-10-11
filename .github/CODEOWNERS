@@ -1,0 +1,26 @@
+# StockPilot CODEOWNERS
+#
+# A reviewer path for every path: opening a pull request automatically requests
+# a review from the maintainer(s) below, so no change — including a docs-only
+# one — lands without a second set of eyes. GitHub requires write access on the
+# default branch to be auto-requested via CODEOWNERS; until a second human
+# contributor has write access, self-review is still possible once branch
+# protection allows it (see docs/development/git-workflow.md §3).
+#
+# Format: <path-glob> <@owner> [@owner ...]. Last matching pattern wins.
+
+# Default owner for everything in the repository.
+*                               @Kaoserahamed
+
+# CI and release tooling: keep the reviewer who owns the pipeline.
+/.github/                       @Kaoserahamed
+
+# Backend service code and its schema/migrations.
+/backend/app/                   @Kaoserahamed
+/backend/tests/                 @Kaoserahamed
+
+# Frontend application code and specs.
+/frontend/                      @Kaoserahamed
+
+# Security-relevant configuration and docs.
+/docs/security/                 @Kaoserahamed

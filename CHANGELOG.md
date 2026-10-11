@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Recorded a reviewer path and added the missing `CODEOWNERS` file.**
+  `docs/development/git-workflow.md` claimed "`CODEOWNERS` requests a review
+  from the maintainer for every path" but no `.github/CODEOWNERS` existed, so
+  that review routing was never actually configured and the history's
+  single-author signal had no documented mitigation. Added
+  `.github/CODEOWNERS` routing every path (including `/docs/`) to the
+  maintainer, and a new "Reviewer path" subsection in §3 covering the human
+  co-maintainer, a bot-assisted review floor (Dependabot + the CI/secret-scan
+  jobs), and self-review rules for solo work — recording the review decision in
+  the PR so it reads as a review rather than a rubber stamp. The CI checks
+  remain the hard gate regardless of who reviews.
+
 - **Documented the `pip list --not-required` dependency cross-check.**
   `docs/dependencies.md` already documents the authoritative manifests and the
   full direct-runtime/dev-dep tables, but the report's suggested runtime
