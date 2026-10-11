@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **Documented the `pip list --not-required` dependency cross-check.**
+  `docs/dependencies.md` already documents the authoritative manifests and the
+  full direct-runtime/dev-dep tables, but the report's suggested runtime
+  reconciliation was not written down or run. Added the command to the auditing
+  section with an explanation of its expected delta — `httptools`, `watchfiles`,
+  `websockets` (the `uvicorn[standard]` extra) and `grpcio-status`
+  (`google-generativeai`) appear as top-level installs without being declared, and
+  `pydantic`/`SQLAlchemy`/`PyYAML`/`pytest` are omitted as transitive pulls even
+  though they are first-class pins. Ran it against a freshly built `backend/.venv`
+  and confirmed every documented pin is present at its documented version; the
+  only extras were the two transitive pulls noted above. Manifest contract
+  re-verified by `test_dependency_manifests.py` (23 tests).
+
 - **Named the concrete observability stack in `docs/operations/monitoring.md`.**
   The logging and error-tracking sections described behaviour but never named
   the libraries a scanner (or an on-call engineer) needs to grep for, so

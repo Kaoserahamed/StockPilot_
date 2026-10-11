@@ -92,6 +92,18 @@ jobs that do the same checks are `backend-audit`, `frontend-audit`,
 # Backend: is anything in the declared manifest behind the latest release?
 cd backend && pip list --outdated -r requirements.txt
 
+# Backend: list the direct (non-transitive) installs actually present in the
+# venv, and reconcile them with the "Backend runtime pins" / "dev/CI pins"
+# tables above. Expect a small, explainable delta:
+#   - `httptools`, `watchfiles`, `websockets` come from the `uvicorn[standard]`
+#     extra, and `grpcio-status` from `google-generativeai` - extras, not top-level
+#     declares, so they appear here but not in the tables.
+#   - `pydantic`, `SQLAlchemy`, `PyYAML`, `pytest` are shown as "required" (not
+#     listed) because another declared package depends on them; they are still
+#     first-class pins in requirements.txt and appear in the tables.
+# Anything else that shows up here should be traceable to requirements*.txt.
+cd backend && pip list --not-required --format=freeze
+
 # Frontend: same question for the declared dependencies.
 cd frontend && npm outdated
 
@@ -110,6 +122,15 @@ The lockfile generator has no `--check` mode: run it, then let `git diff --exit-
 tell you whether the committed lockfiles were already up to date. The same
 agreement is asserted in Python by `backend/tests/test_dependency_manifests.py`,
 so a forgotten half-edit is caught by `backend-test` too.
+
+The `[project].dependencies` table in `backend/pyproject.toml` mirrors
+`requirements.txt`, so tooling that introspects PEP 621 metadata (`pip show`,
+`uv`, scanners) can count the direct runtime deps directly rather than inferring
+them. The `pip list --not-required` command above is the runtime counterpart: it
+shows what is actually installed as a top-level package in a built venv, which
+is how to confirm the documented tables still match reality (last reconciled:
+every documented pin present at its documented version; the only extras were the
+`uvicorn[standard]` and `google-generativeai` transitive pulls noted inline).
 
 ## Update policy
 
